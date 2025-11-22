@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { createClient } from '@supabase/supabase-js';
 import { 
   Ship, 
   Search, 
@@ -9,27 +8,27 @@ import {
   LayoutDashboard, 
   Anchor, 
   Radio, 
-  Upload, 
   CheckCircle, 
   AlertTriangle,
   Menu,
   X,
   Save,
-  Database,
-  RefreshCw
+  RefreshCw,
+  Terminal,
+  Settings,
+  Upload,
+  Split,
+  Check,
+  Info,
+  Hash,
+  Edit2
 } from 'lucide-react';
-
-// --- CONFIGURATION ---
-// REPLACE THESE WITH YOUR ACTUAL SUPABASE PROJECT DETAILS
-const supabaseUrl = 'YOUR_SUPABASE_URL_HERE';
-const supabaseKey = 'YOUR_SUPABASE_ANON_KEY_HERE';
-
-const supabase = createClient(supabaseUrl, supabaseKey);
 
 // --- Utility: CSV Parser ---
 const parseCSV = (text, type) => {
   const lines = text.split('\n');
-  const headers = lines[0].split(',').map(h => h.trim().toLowerCase().replace(/['"]+/g, ''));
+  const isBook2 = lines[0].toLowerCase().includes('vessel name'); 
+  
   const data = [];
 
   for (let i = 1; i < lines.length; i++) {
@@ -45,89 +44,141 @@ const parseCSV = (text, type) => {
     }
     row.push(current.trim());
 
-    if (row.length < 2) continue; 
-
     const obj = {};
     
     if (type === 'active') {
-        // Mapping for "all ships 25-10-2022.csv"
-        let rawMmsi = row[headers.indexOf('mmsi')] || row[13];
-        if(rawMmsi) rawMmsi = rawMmsi.replace(/\s/g, ''); // Clean spaces
+        if (isBook2) {
+            let rawMmsi = row[0];
+            if(rawMmsi) rawMmsi = rawMmsi.replace(/\s/g, ''); 
 
-        obj.mmsi = rawMmsi;
-        obj.ship_name = row[headers.indexOf('ship_name')] || row[3];
-        obj.call_sign = row[headers.indexOf('callsign')] || row[4];
-        obj.owner_name = row[headers.indexOf('user_name')] || row[5];
-        obj.validity = row[headers.indexOf('vald')] || row[1]; // Needs Date formatting in real scenario
-        obj.ship_type = row[headers.indexOf('tp')] || 'Gen';
-        obj.reg_no = row[headers.indexOf('regno')] || '';
-        obj.cpr = row[headers.indexOf('cpr')] || '';
-    } else if (type === 'pool') {
-        // Mapping for "Sheet1.csv"
-        let rawMmsi = row[0];
-        if(rawMmsi) rawMmsi = rawMmsi.replace(/\s/g, '');
+            if (!rawMmsi) continue;
 
-        obj.mmsi = rawMmsi;
-        obj.assigned_name = row[1]; // Name column
-        // Logic: If name column is empty or very short, it's Available
-        obj.status = (row[1] && row[1].length > 1) ? 'Assigned' : 'Available';
-    } else if (type === 'deleted') {
-         // Mapping for "Deleted.csv"
-         let rawMmsi = row[0];
-         if(rawMmsi) rawMmsi = rawMmsi.replace(/\s/g, '');
-         
-         obj.mmsi = rawMmsi;
-         obj.ship_name = row[1];
-         obj.reason = row[headers.indexOf('reason')] || 'Archived from File';
-    }
-    if(obj.mmsi) data.push(obj); // Only push if MMSI exists
+            obj.mmsi = rawMmsi;
+            obj.owner_name = row[1] || '';
+            obj.ship_name = row[8] || '';
+            obj.call_sign = row[9] || '';
+            obj.ship_type = row[13] || 'Gen';
+            obj.reg_no = row[14] || '';
+            obj.validity = new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toISOString(); 
+        } else {
+            let rawMmsi = row[13]; 
+            if(rawMmsi) rawMmsi = rawMmsi.replace(/\s/g, '');
+            if (!rawMmsi) continue;
+            obj.mmsi = rawMmsi;
+            obj.ship_name = row[3];
+            obj.reg_no = row[14] || '';
+        }
+    } 
+    if(obj.mmsi) data.push(obj); 
   }
   return data;
 };
 
 export default function MMSIAssignmentSystem() {
-  // --- State ---
+  // --- App State ---
+  const [supabase, setSupabase] = useState(null);
   const [activeShips, setActiveShips] = useState([]);
   const [mmsiPool, setMmsiPool] = useState([]);
   const [deletedShips, setDeletedShips] = useState([]);
+  
+  // --- Selection State ---
+  const [selectedShip, setSelectedShip] = useState(null);
+
+  // --- Import Conflict State ---
+  const [importConflicts, setImportConflicts] = useState([]); 
+  const [cleanImportData, setCleanImportData] = useState([]); 
+  const [resolvedConflicts, setResolvedConflicts] = useState([]); 
   
   const [view, setView] = useState('dashboard'); 
   const [searchTerm, setSearchTerm] = useState('');
   const [isSidebarOpen, setSidebarOpen] = useState(true);
   const [notification, setNotification] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [envError, setEnvError] = useState(false);
 
-  // --- Initial Load ---
+  // --- Constants ---
+  const MMSI_START = 408000001;
+  const MMSI_END = 408999998;
+
+  // --- Initialization ---
   useEffect(() => {
-    fetchData();
+    let envUrl, envKey;
+    try {
+        envUrl = import.meta.env.VITE_SUPABASE_URL;
+        envKey = import.meta.env.VITE_SUPABASE_KEY;
+    } catch (e) {
+        console.warn("Environment variables not accessible.");
+    }
+
+    if (!envUrl || !envKey || envUrl.includes('your-project-url')) {
+        setEnvError(true);
+        return;
+    }
+
+    if (!window.supabase) {
+        const script = document.createElement('script');
+        script.src = "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2";
+        script.async = true;
+        script.onload = () => initializeSupabase(envUrl, envKey);
+        document.body.appendChild(script);
+    } else {
+        initializeSupabase(envUrl, envKey);
+    }
   }, []);
 
-  const fetchData = async () => {
+  const initializeSupabase = (url, key) => {
+    if (!window.supabase || !window.supabase.createClient) {
+        setTimeout(() => initializeSupabase(url, key), 500);
+        return;
+    }
+    try {
+      const client = window.supabase.createClient(url, key);
+      setSupabase(client);
+      setTimeout(() => fetchData(client), 500);
+    } catch (e) {
+      showNotification("Failed to initialize database client", "error");
+    }
+  };
+
+  const fetchData = async (client) => {
+    if (!client) return;
     setLoading(true);
     try {
-      const { data: active } = await supabase.from('active_ships').select('*').order('created_at', { ascending: false });
-      const { data: pool } = await supabase.from('mmsi_pool').select('*').order('mmsi', { ascending: true }).limit(1000); // Limiting for perf
-      const { data: deleted } = await supabase.from('deleted_ships').select('*').order('deleted_at', { ascending: false });
+      const { data: active } = await client.from('active_ships').select('*').order('created_at', { ascending: false });
+      const { data: pool } = await client.from('mmsi_pool').select('*').order('mmsi', { ascending: true }).limit(1000); 
+      const { data: deleted } = await client.from('deleted_ships').select('*').order('deleted_at', { ascending: false });
 
       if(active) setActiveShips(active);
       if(pool) setMmsiPool(pool);
       if(deleted) setDeletedShips(deleted);
     } catch (error) {
       console.error("Error fetching data:", error);
-      showNotification("Error connecting to Database. Check credentials.", "error");
     } finally {
       setLoading(false);
     }
   };
 
-  // --- Actions ---
-  
   const showNotification = (msg, type = 'success') => {
     setNotification({ msg, type });
     setTimeout(() => setNotification(null), 4000);
   };
 
-  const handleFileUpload = (e, type) => {
+  // --- Logic: Find Next Available MMSI ---
+  const findNextAvailableMmsi = () => {
+    // Create a Set of all currently assigned MMSIs for fast lookup
+    const assignedSet = new Set(activeShips.map(s => parseInt(s.mmsi, 10)));
+    
+    // Scan the range
+    for (let i = MMSI_START; i <= MMSI_END; i++) {
+        if (!assignedSet.has(i)) {
+            return i.toString();
+        }
+    }
+    return null;
+  };
+
+  const handleImport = (e) => {
+    if (!supabase) return;
     const file = e.target.files[0];
     if (!file) return;
 
@@ -135,38 +186,78 @@ export default function MMSIAssignmentSystem() {
     const reader = new FileReader();
     reader.onload = async (event) => {
       const text = event.target.result;
-      const parsedData = parseCSV(text, type);
+      const parsedData = parseCSV(text, 'active');
       
-      let error = null;
-
-      // Bulk Insert to Supabase
-      if (type === 'active') {
-        const { error: err } = await supabase.from('active_ships').upsert(parsedData, { onConflict: 'mmsi' });
-        error = err;
-      } else if (type === 'pool') {
-        const { error: err } = await supabase.from('mmsi_pool').upsert(parsedData, { onConflict: 'mmsi' });
-        error = err;
-      } else if (type === 'deleted') {
-        const { error: err } = await supabase.from('deleted_ships').insert(parsedData);
-        error = err;
+      if (parsedData.length === 0) {
+        showNotification("No valid data found in file.", "error");
+        setLoading(false);
+        return;
       }
 
-      if (error) {
-        console.error(error);
-        showNotification(`Database Error: ${error.message}`, 'error');
+      const groups = {};
+      parsedData.forEach(row => {
+          if (!groups[row.mmsi]) groups[row.mmsi] = [];
+          groups[row.mmsi].push(row);
+      });
+
+      const conflicts = [];
+      const clean = [];
+
+      Object.keys(groups).forEach(mmsi => {
+          if (groups[mmsi].length > 1) {
+              conflicts.push({ mmsi, variants: groups[mmsi] });
+          } else {
+              clean.push(groups[mmsi][0]);
+          }
+      });
+
+      if (conflicts.length > 0) {
+          setImportConflicts(conflicts);
+          setCleanImportData(clean);
+          setResolvedConflicts([]);
+          setLoading(false);
+          showNotification(`Found ${conflicts.length} conflicting MMSI numbers. Please resolve them.`, 'warning');
       } else {
-        showNotification(`Successfully migrated ${parsedData.length} records to ${type} table.`);
-        fetchData(); // Refresh local state
+          performUpload(parsedData);
       }
-      setLoading(false);
     };
     reader.readAsText(file);
   };
 
+  const resolveConflict = (mmsi, selectedVariant) => {
+      setResolvedConflicts(prev => [...prev.filter(i => i.mmsi !== mmsi), selectedVariant]);
+  };
+
+  const finalizeImport = () => {
+      const finalData = [...cleanImportData, ...resolvedConflicts];
+      performUpload(finalData);
+      setImportConflicts([]); 
+  };
+
+  const performUpload = async (data) => {
+      setLoading(true);
+      const { error: activeError } = await supabase.from('active_ships').upsert(data, { onConflict: 'mmsi' });
+      
+      if (activeError) {
+        showNotification(`Import Failed: ${activeError.message}`, 'error');
+      } else {
+        const poolUpdates = data.map(s => ({
+            mmsi: s.mmsi,
+            status: 'Assigned',
+            assigned_name: s.ship_name
+        }));
+        await supabase.from('mmsi_pool').upsert(poolUpdates, { onConflict: 'mmsi' });
+
+        showNotification(`Successfully imported ${data.length} ships.`, 'success');
+        fetchData(supabase); 
+      }
+      setLoading(false);
+  };
+
   const assignMmsi = async (formData) => {
+    if (!supabase) return;
     setLoading(true);
     
-    // 1. Insert into Active Ships
     const newShip = {
       mmsi: formData.mmsi,
       ship_name: formData.name,
@@ -180,61 +271,67 @@ export default function MMSIAssignmentSystem() {
     const { error: insertError } = await supabase.from('active_ships').insert([newShip]);
 
     if (insertError) {
-      showNotification("Failed to create ship record: " + insertError.message, "error");
+      showNotification("Failed: " + insertError.message, "error");
       setLoading(false);
       return;
     }
 
-    // 2. Update Pool Status
-    const { error: updateError } = await supabase
-      .from('mmsi_pool')
-      .update({ status: 'Assigned', assigned_name: formData.name })
-      .eq('mmsi', formData.mmsi);
+    await supabase.from('mmsi_pool').update({ status: 'Assigned', assigned_name: formData.name }).eq('mmsi', formData.mmsi);
+    showNotification(`Ship ${formData.name} assigned MMSI ${formData.mmsi} successfully.`);
+    setView('search');
+    fetchData(supabase);
+    setLoading(false);
+  };
 
-    if (updateError) {
-      showNotification("Ship created but failed to update MMSI Pool status.", "error");
+  const updateShip = async (updatedData) => {
+    if (!supabase) return;
+    setLoading(true);
+
+    const { error } = await supabase
+        .from('active_ships')
+        .update({
+            ship_name: updatedData.ship_name,
+            owner_name: updatedData.owner_name,
+            call_sign: updatedData.call_sign,
+            reg_no: updatedData.reg_no,
+            ship_type: updatedData.ship_type
+        })
+        .eq('mmsi', updatedData.mmsi);
+
+    if (error) {
+        showNotification("Update Failed: " + error.message, "error");
     } else {
-      showNotification(`Ship ${formData.name} assigned MMSI ${formData.mmsi} successfully.`);
-      setView('search');
-      fetchData();
+        // Sync pool name to keep it consistent
+        await supabase.from('mmsi_pool')
+            .update({ assigned_name: updatedData.ship_name })
+            .eq('mmsi', updatedData.mmsi);
+            
+        showNotification("Ship details updated successfully.");
+        fetchData(supabase);
+        setSelectedShip(updatedData); 
     }
     setLoading(false);
   };
 
   const deleteShip = async (ship) => {
-    if (!confirm(`Are you sure you want to delete ${ship.ship_name}? This will archive the record.`)) return;
+    if (!supabase) return;
+    if (!confirm(`Are you sure you want to delete ${ship.ship_name}?`)) return;
     setLoading(true);
 
-    // 1. Add to Deleted
-    await supabase.from('deleted_ships').insert([{
-      mmsi: ship.mmsi,
-      ship_name: ship.ship_name,
-      reason: 'Manual Deletion via System'
-    }]);
-
-    // 2. Remove from Active
+    await supabase.from('deleted_ships').insert([{ mmsi: ship.mmsi, ship_name: ship.ship_name, reason: 'Manual Deletion' }]);
     await supabase.from('active_ships').delete().eq('mmsi', ship.mmsi);
-
-    // 3. Free up in Pool
     await supabase.from('mmsi_pool').update({ status: 'Available', assigned_name: null }).eq('mmsi', ship.mmsi);
 
-    showNotification('Ship moved to deleted records and MMSI released.');
-    fetchData();
-  };
-
-  // --- Derived State ---
-  const stats = {
-    totalActive: activeShips.length,
-    totalPool: mmsiPool.length,
-    availableMmsi: mmsiPool.filter(p => p.status === 'Available').length,
-    deletedCount: deletedShips.length,
+    showNotification('Ship deleted and MMSI released.');
+    fetchData(supabase);
+    if (selectedShip?.mmsi === ship.mmsi) setSelectedShip(null);
   };
 
   // --- Components ---
 
   const SidebarItem = ({ id, icon: Icon, label }) => (
     <button
-      onClick={() => setView(id)}
+      onClick={() => { setView(id); setSelectedShip(null); }}
       className={`w-full flex items-center space-x-3 px-6 py-4 transition-colors ${
         view === id ? 'bg-blue-800 text-white border-r-4 border-blue-400' : 'text-blue-100 hover:bg-blue-800'
       }`}
@@ -256,208 +353,242 @@ export default function MMSIAssignmentSystem() {
     </div>
   );
 
+  const ConflictModal = () => {
+      if (importConflicts.length === 0) return null;
+      const resolvedCount = resolvedConflicts.length;
+      const totalCount = importConflicts.length;
+      const isComplete = resolvedCount === totalCount;
+
+      return (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
+              <div className="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col">
+                  <div className="p-6 border-b bg-amber-50 rounded-t-xl flex justify-between items-center">
+                      <div>
+                          <h2 className="text-xl font-bold text-amber-800 flex items-center">
+                              <Split className="mr-2" /> Duplicate Entries Detected
+                          </h2>
+                          <p className="text-amber-700 text-sm mt-1">
+                              The file contains <strong>{totalCount} MMSI numbers</strong> that appear multiple times.
+                          </p>
+                      </div>
+                      <div className="text-right">
+                          <p className="text-2xl font-bold text-amber-800">{resolvedCount} / {totalCount}</p>
+                          <p className="text-xs text-amber-600 font-bold uppercase">Resolved</p>
+                      </div>
+                  </div>
+                  <div className="flex-1 overflow-y-auto p-6 space-y-6 bg-slate-50">
+                      {importConflicts.map((conflict, idx) => {
+                          const isResolved = resolvedConflicts.find(r => r.mmsi === conflict.mmsi);
+                          return (
+                              <div key={conflict.mmsi} className={`bg-white border rounded-lg overflow-hidden transition-all ${isResolved ? 'border-emerald-200 opacity-60' : 'border-blue-200 shadow-md'}`}>
+                                  <div className={`px-4 py-2 flex justify-between items-center ${isResolved ? 'bg-emerald-50' : 'bg-blue-50'}`}>
+                                      <span className="font-mono font-bold text-slate-700">MMSI: {conflict.mmsi}</span>
+                                      {isResolved && <span className="text-xs font-bold text-emerald-600 flex items-center"><Check size={14} className="mr-1"/> RESOLVED</span>}
+                                  </div>
+                                  <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+                                      {conflict.variants.map((variant, vIdx) => (
+                                          <button key={vIdx} onClick={() => resolveConflict(conflict.mmsi, variant)} className={`text-left p-3 rounded-lg border-2 transition-all relative group ${isResolved === variant ? 'border-emerald-500 bg-emerald-50 ring-2 ring-emerald-200' : 'border-slate-100 hover:border-blue-300 hover:bg-blue-50'}`}>
+                                              <div className="space-y-1">
+                                                  <div className="text-sm font-semibold text-slate-800">{variant.ship_name || '(No Name)'}</div>
+                                                  <div className="text-xs text-slate-500">Call Sign: {variant.call_sign}</div>
+                                                  <div className="text-xs text-slate-500">Owner: {variant.owner_name}</div>
+                                              </div>
+                                              {isResolved === variant && <div className="absolute top-2 right-2 bg-emerald-500 text-white rounded-full p-1"><Check size={12} /></div>}
+                                          </button>
+                                      ))}
+                                  </div>
+                              </div>
+                          );
+                      })}
+                  </div>
+                  <div className="p-4 border-t bg-white rounded-b-xl flex justify-between items-center">
+                      <button onClick={() => setImportConflicts([])} className="px-4 py-2 text-slate-500 hover:text-slate-700">Cancel Import</button>
+                      <button onClick={finalizeImport} disabled={!isComplete} className={`px-6 py-3 rounded-lg font-bold text-white transition-all flex items-center ${isComplete ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-slate-300 cursor-not-allowed'}`}>{isComplete ? <><Save className="mr-2" size={18}/> Finalize Import</> : `Resolve ${totalCount - resolvedCount} Remaining`}</button>
+                  </div>
+              </div>
+          </div>
+      );
+  };
+
+  const DetailModal = () => {
+      if (!selectedShip) return null;
+      
+      const [isEditing, setIsEditing] = useState(false);
+      const [editForm, setEditForm] = useState({...selectedShip});
+
+      // Reset form when selectedShip changes
+      useEffect(() => {
+          setEditForm({...selectedShip});
+          setIsEditing(false);
+      }, [selectedShip]);
+
+      const handleSave = async () => {
+          await updateShip(editForm);
+          setIsEditing(false);
+      };
+
+      return (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
+              <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl overflow-hidden">
+                  <div className="bg-blue-900 px-6 py-4 flex justify-between items-center">
+                      <h2 className="text-white font-bold text-lg flex items-center"><Ship className="mr-2"/> Ship & MMSI Assignment Details</h2>
+                      <button onClick={() => setSelectedShip(null)} className="text-blue-200 hover:text-white"><X size={24}/></button>
+                  </div>
+                  <div className="p-8 space-y-6">
+                      
+                      {/* --- Edit Mode --- */}
+                      {isEditing ? (
+                          <div className="space-y-4">
+                              <div className="grid grid-cols-2 gap-4">
+                                  <div>
+                                      <label className="block text-xs font-bold text-slate-500 mb-1">Vessel Name</label>
+                                      <input type="text" className="w-full p-2 border rounded" value={editForm.ship_name} onChange={(e) => setEditForm({...editForm, ship_name: e.target.value})} />
+                                  </div>
+                                  <div>
+                                      <label className="block text-xs font-bold text-slate-500 mb-1">MMSI (Read Only)</label>
+                                      <input type="text" disabled className="w-full p-2 border rounded bg-slate-100 text-slate-500 font-mono" value={editForm.mmsi} />
+                                  </div>
+                              </div>
+                              <div className="grid grid-cols-2 gap-4">
+                                  <div>
+                                      <label className="block text-xs font-bold text-slate-500 mb-1">Call Sign</label>
+                                      <input type="text" className="w-full p-2 border rounded" value={editForm.call_sign} onChange={(e) => setEditForm({...editForm, call_sign: e.target.value})} />
+                                  </div>
+                                  <div>
+                                      <label className="block text-xs font-bold text-slate-500 mb-1">Registration No</label>
+                                      <input type="text" className="w-full p-2 border rounded" value={editForm.reg_no} onChange={(e) => setEditForm({...editForm, reg_no: e.target.value})} />
+                                  </div>
+                              </div>
+                              <div>
+                                  <label className="block text-xs font-bold text-slate-500 mb-1">Owner Name</label>
+                                  <input type="text" className="w-full p-2 border rounded" value={editForm.owner_name} onChange={(e) => setEditForm({...editForm, owner_name: e.target.value})} />
+                              </div>
+                              <div>
+                                  <label className="block text-xs font-bold text-slate-500 mb-1">Ship Type</label>
+                                  <input type="text" className="w-full p-2 border rounded" value={editForm.ship_type} onChange={(e) => setEditForm({...editForm, ship_type: e.target.value})} />
+                              </div>
+                              <div className="flex justify-end space-x-3 pt-4 border-t mt-4">
+                                  <button onClick={() => setIsEditing(false)} className="px-4 py-2 text-slate-500 hover:bg-slate-100 rounded">Cancel</button>
+                                  <button onClick={handleSave} className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 flex items-center"><Save size={16} className="mr-2"/> Save Changes</button>
+                              </div>
+                          </div>
+                      ) : (
+                          /* --- View Mode --- */
+                          <>
+                            <div className="grid grid-cols-2 gap-8">
+                                <div>
+                                    <p className="text-xs uppercase tracking-wider text-slate-500 font-semibold mb-1">Vessel Name</p>
+                                    <p className="text-xl font-bold text-slate-800">{selectedShip.ship_name || 'N/A'}</p>
+                                </div>
+                                <div>
+                                    <p className="text-xs uppercase tracking-wider text-slate-500 font-semibold mb-1">Assigned MMSI</p>
+                                    <p className="text-2xl font-mono font-bold text-blue-600">{selectedShip.mmsi}</p>
+                                </div>
+                            </div>
+                            <div className="grid grid-cols-2 gap-6 border-t border-b border-slate-100 py-6">
+                                <div><p className="text-xs text-slate-500">Call Sign</p><p className="font-medium text-slate-700">{selectedShip.call_sign || '-'}</p></div>
+                                <div><p className="text-xs text-slate-500">Registration No</p><p className="font-medium text-slate-700">{selectedShip.reg_no || '-'}</p></div>
+                                <div><p className="text-xs text-slate-500">Owner Name</p><p className="font-medium text-slate-700">{selectedShip.owner_name || '-'}</p></div>
+                                <div><p className="text-xs text-slate-500">Ship Type</p><p className="font-medium text-slate-700">{selectedShip.ship_type || '-'}</p></div>
+                            </div>
+                            <div className="bg-slate-50 p-4 rounded-lg border border-slate-200 text-sm">
+                                <div className="flex justify-between items-center mb-2"><span>Global Range:</span><span className="font-mono text-slate-600">408 000 001 - 408 999 998</span></div>
+                                <div className="flex justify-between items-center"><span>Status:</span><span className="px-2 py-1 bg-emerald-100 text-emerald-800 rounded text-xs font-bold">ACTIVE</span></div>
+                            </div>
+                            <div className="flex justify-end space-x-3 pt-2">
+                                <button onClick={() => setIsEditing(true)} className="px-4 py-2 border border-blue-200 text-blue-600 rounded hover:bg-blue-50 flex items-center"><Edit2 size={16} className="mr-2"/> Edit Details</button>
+                                <button onClick={() => deleteShip(selectedShip)} className="px-4 py-2 border border-red-200 text-red-600 rounded hover:bg-red-50 flex items-center"><Trash2 size={16} className="mr-2"/> Delete</button>
+                                <button onClick={() => setSelectedShip(null)} className="px-4 py-2 bg-slate-100 text-slate-700 rounded hover:bg-slate-200">Close</button>
+                            </div>
+                          </>
+                      )}
+                  </div>
+              </div>
+          </div>
+      );
+  };
+
   // --- Views ---
+  
+  if (envError) return <div className="flex h-screen items-center justify-center text-red-600">Config Missing</div>;
 
-  const DashboardView = () => (
-    <div className="space-y-8">
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <StatCard label="Active Ships" value={stats.totalActive} icon={Ship} color="bg-blue-600" />
-        <StatCard label="Available MMSI" value={stats.availableMmsi} icon={Radio} color="bg-emerald-500" />
-        <StatCard label="Total Registry" value={stats.totalPool} icon={FileText} color="bg-indigo-500" />
-        <StatCard label="Deleted / Archived" value={stats.deletedCount} icon={Trash2} color="bg-slate-500" />
-      </div>
+  const stats = {
+    totalActive: activeShips.length,
+    totalPool: mmsiPool.length,
+    availableMmsi: mmsiPool.filter(p => p.status === 'Available').length,
+    deletedCount: deletedShips.length,
+  };
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        {/* Migration / Upload */}
-        <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-6">
-          <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center">
-            <Database className="mr-2 text-blue-600" size={20}/> Database Migration / Import
-          </h3>
-          <p className="text-sm text-slate-500 mb-4">Select the corresponding CSV files to migrate data into Supabase.</p>
-          <div className="space-y-4">
-            <div className="p-4 border border-dashed border-slate-300 rounded-lg bg-slate-50">
-              <label className="block text-sm font-medium text-slate-700 mb-2">1. Active Ships (all ships...csv)</label>
-              <input type="file" accept=".csv" onChange={(e) => handleFileUpload(e, 'active')} className="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"/>
-            </div>
-            <div className="p-4 border border-dashed border-slate-300 rounded-lg bg-slate-50">
-              <label className="block text-sm font-medium text-slate-700 mb-2">2. MMSI Pool (Sheet1.csv)</label>
-              <input type="file" accept=".csv" onChange={(e) => handleFileUpload(e, 'pool')} className="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-emerald-50 file:text-emerald-700 hover:file:bg-emerald-100"/>
-            </div>
-            <div className="p-4 border border-dashed border-slate-300 rounded-lg bg-slate-50">
-              <label className="block text-sm font-medium text-slate-700 mb-2">3. Deleted Ships (Deleted.csv)</label>
-              <input type="file" accept=".csv" onChange={(e) => handleFileUpload(e, 'deleted')} className="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-red-50 file:text-red-700 hover:file:bg-red-100"/>
-            </div>
-          </div>
+  const SettingsView = () => (
+    <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-8 max-w-2xl mx-auto mt-8">
+        <h3 className="text-xl font-bold text-slate-800 mb-6 flex items-center"><Settings className="mr-2" /> System Administration</h3>
+        <div className="mb-8 p-6 bg-slate-50 rounded-lg border border-slate-200">
+            <h4 className="font-semibold text-slate-700 mb-2">Data Import (Book2.csv)</h4>
+            <label className="flex items-center justify-center w-full h-32 px-4 transition bg-white border-2 border-gray-300 border-dashed rounded-md appearance-none cursor-pointer hover:border-blue-400">
+                <span className="flex flex-col items-center space-y-2"><Upload className="text-gray-400" size={24}/><span className="font-medium text-gray-600">Drop Book2.csv here</span></span>
+                <input type="file" className="hidden" accept=".csv" onChange={handleImport} />
+            </label>
         </div>
-
-        {/* System Status */}
-        <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-6">
-          <h3 className="text-lg font-bold text-slate-800 mb-4">Database Status</h3>
-          <div className="space-y-4">
-            <div className="flex items-center text-sm text-slate-600">
-              <CheckCircle className="text-emerald-500 mr-2" size={16} />
-              Supabase Connection Active
-            </div>
-            <div className="flex items-center text-sm text-slate-600">
-              <CheckCircle className="text-emerald-500 mr-2" size={16} />
-              Tables: Active, Pool, Deleted
-            </div>
-            {stats.availableMmsi < 50 && (
-               <div className="flex items-center text-sm text-amber-600 bg-amber-50 p-2 rounded">
-               <AlertTriangle className="mr-2" size={16} />
-               Warning: Low MMSI availability ({stats.availableMmsi} remaining)
-             </div>
-            )}
-            <button onClick={fetchData} className="mt-4 text-blue-600 text-sm font-semibold hover:underline flex items-center">
-               <RefreshCw size={14} className="mr-1"/> Refresh Data
-            </button>
-          </div>
-        </div>
-      </div>
     </div>
   );
 
-  const ShipListView = () => {
-    const filtered = activeShips.filter(s => 
-      (s.ship_name && s.ship_name.toLowerCase().includes(searchTerm.toLowerCase())) ||
-      (s.mmsi && s.mmsi.includes(searchTerm)) ||
-      (s.call_sign && s.call_sign.toLowerCase().includes(searchTerm.toLowerCase())) ||
-      (s.owner_name && s.owner_name.toLowerCase().includes(searchTerm.toLowerCase()))
-    );
-
-    return (
-      <div className="bg-white rounded-xl shadow-sm border border-slate-100 flex flex-col h-full">
-        <div className="p-6 border-b border-slate-100 flex flex-col sm:flex-row justify-between items-center gap-4">
-          <h2 className="text-xl font-bold text-slate-800">Active Ship Registry</h2>
-          <div className="relative w-full sm:w-72">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" size={18} />
-            <input 
-              type="text" 
-              placeholder="Search Name, MMSI, Owner..." 
-              className="w-full pl-10 pr-4 py-2 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
-          </div>
-        </div>
-        <div className="overflow-x-auto flex-1">
-          <table className="w-full text-left">
-            <thead className="bg-slate-50 text-slate-500 text-sm uppercase">
-              <tr>
-                <th className="px-6 py-4 font-semibold">MMSI</th>
-                <th className="px-6 py-4 font-semibold">Ship Name</th>
-                <th className="px-6 py-4 font-semibold">Call Sign</th>
-                <th className="px-6 py-4 font-semibold">Owner</th>
-                <th className="px-6 py-4 font-semibold">Validity</th>
-                <th className="px-6 py-4 font-semibold text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {filtered.map(ship => (
-                <tr key={ship.mmsi} className="hover:bg-slate-50 transition-colors">
-                  <td className="px-6 py-4 font-mono text-blue-600 font-medium">{ship.mmsi}</td>
-                  <td className="px-6 py-4 font-medium text-slate-800">{ship.ship_name}</td>
-                  <td className="px-6 py-4 text-slate-600">{ship.call_sign}</td>
-                  <td className="px-6 py-4 text-slate-600 text-sm max-w-xs truncate">{ship.owner_name}</td>
-                  <td className="px-6 py-4">
-                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-800">
-                      {ship.validity}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 text-right">
-                    <button 
-                      onClick={() => deleteShip(ship)}
-                      className="text-slate-400 hover:text-red-600 transition-colors"
-                      title="Delete Ship"
-                    >
-                      <Trash2 size={18} />
-                    </button>
-                  </td>
-                </tr>
-              ))}
-              {filtered.length === 0 && (
-                <tr>
-                  <td colSpan="6" className="px-6 py-12 text-center text-slate-400">
-                    No ships found matching your search.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    );
-  };
-
   const AssignMmsiView = () => {
-    const [formData, setFormData] = useState({
-      name: '', owner: '', callSign: '', regNo: '', type: 'Gen', mmsi: ''
-    });
-
-    // Only show Available MMSIs
-    const availableMmsis = mmsiPool.filter(p => p.status === 'Available').slice(0, 200);
-
-    const handleSubmit = (e) => {
-      e.preventDefault();
-      if (!formData.mmsi) return showNotification("Please select an MMSI number.", "error");
-      assignMmsi(formData);
+    const [formData, setFormData] = useState({ name: '', owner: '', callSign: '', regNo: '', type: 'Gen', mmsi: '' });
+    
+    const handleAutoSuggest = () => {
+        const next = findNextAvailableMmsi();
+        if(next) setFormData(prev => ({ ...prev, mmsi: next }));
+        else showNotification("No available MMSI found in range!", "error");
     };
 
     return (
       <div className="max-w-2xl mx-auto bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden">
-        <div className="bg-blue-900 px-6 py-4 flex items-center justify-between">
-          <h2 className="text-white font-bold text-lg flex items-center">
-            <Plus className="mr-2" /> Assign New MMSI
-          </h2>
-        </div>
-        <form onSubmit={handleSubmit} className="p-8 space-y-6">
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="space-y-2">
-              <label className="text-sm font-semibold text-slate-700">Vessel Name</label>
-              <input required type="text" className="w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500" placeholder="e.g. SEA HAWK 1" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})}/>
+        <div className="bg-blue-900 px-6 py-4"><h2 className="text-white font-bold text-lg flex items-center"><Plus className="mr-2" /> Assign New MMSI</h2></div>
+        <form onSubmit={(e) => { e.preventDefault(); assignMmsi(formData); }} className="p-8 space-y-6">
+          <div className="grid grid-cols-2 gap-6">
+            <div><label className="text-sm font-semibold">Vessel Name</label><input value={formData.name} onChange={e=>setFormData({...formData, name: e.target.value})} required className="w-full p-3 border rounded-lg" /></div>
+            <div><label className="text-sm font-semibold">Call Sign</label><input value={formData.callSign} onChange={e=>setFormData({...formData, callSign: e.target.value})} className="w-full p-3 border rounded-lg" /></div>
+          </div>
+          <div className="grid grid-cols-2 gap-6">
+            <div><label className="text-sm font-semibold">Owner</label><input value={formData.owner} onChange={e=>setFormData({...formData, owner: e.target.value})} required className="w-full p-3 border rounded-lg" /></div>
+            <div><label className="text-sm font-semibold">Reg No</label><input value={formData.regNo} onChange={e=>setFormData({...formData, regNo: e.target.value})} className="w-full p-3 border rounded-lg" /></div>
+          </div>
+          <div className="bg-slate-50 p-4 rounded-lg border border-slate-200">
+            <label className="text-sm font-bold text-slate-700 flex justify-between items-center mb-2">
+                <span>Assign MMSI Number</span>
+                <span className="text-xs font-normal text-slate-500">Range: 408000001 - 408999998</span>
+            </label>
+            <div className="flex gap-2">
+                <input 
+                    type="text" 
+                    required 
+                    className="flex-1 p-3 border rounded-lg font-mono text-blue-700 font-bold" 
+                    value={formData.mmsi}
+                    onChange={e => setFormData({...formData, mmsi: e.target.value})}
+                    placeholder="Enter or Generate..."
+                />
+                <button type="button" onClick={handleAutoSuggest} className="px-4 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 font-medium text-sm flex items-center">
+                    <RefreshCw size={16} className="mr-2"/> Find Next Free
+                </button>
             </div>
-            <div className="space-y-2">
-              <label className="text-sm font-semibold text-slate-700">Call Sign</label>
-              <input type="text" className="w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500" placeholder="e.g. A9D1234" value={formData.callSign} onChange={e => setFormData({...formData, callSign: e.target.value})}/>
-            </div>
+            <p className="text-xs text-slate-500 mt-2 flex items-center"><Info size={12} className="mr-1"/> System will scan for the first available number in range.</p>
           </div>
-
-          <div className="space-y-2">
-            <label className="text-sm font-semibold text-slate-700">Owner / Company Name</label>
-            <input required type="text" className="w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500" placeholder="Full Registered Owner Name" value={formData.owner} onChange={e => setFormData({...formData, owner: e.target.value})}/>
-          </div>
-
-          <div className="space-y-2">
-            <label className="text-sm font-semibold text-slate-700">Assign MMSI Number</label>
-            <select required className="w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white" value={formData.mmsi} onChange={e => setFormData({...formData, mmsi: e.target.value})}>
-              <option value="">Select an available MMSI...</option>
-              {availableMmsis.map(m => (
-                <option key={m.mmsi} value={m.mmsi}>{m.mmsi} (Available)</option>
-              ))}
-            </select>
-          </div>
-
-          <div className="pt-4 flex justify-end space-x-4">
-             <button type="button" onClick={() => setView('search')} className="px-6 py-3 rounded-lg text-slate-600 font-medium hover:bg-slate-100 transition-colors">Cancel</button>
-            <button type="submit" className="px-6 py-3 rounded-lg bg-blue-600 text-white font-medium hover:bg-blue-700 shadow-lg shadow-blue-200 transition-all flex items-center"><Save className="mr-2" size={18} /> Confirm Assignment</button>
-          </div>
+          <div className="pt-4 flex justify-end"><button type="submit" className="px-6 py-3 rounded-lg bg-blue-600 text-white font-medium">Confirm Assignment</button></div>
         </form>
       </div>
     );
   };
 
-  // --- Main Layout ---
   return (
     <div className="flex h-screen bg-slate-50 font-sans text-slate-900">
-      
-      {/* Sidebar */}
+      <ConflictModal />
+      <DetailModal />
+
       <div className={`${isSidebarOpen ? 'w-72' : 'w-20'} bg-blue-900 flex-shrink-0 flex flex-col transition-all duration-300 shadow-xl z-20`}>
         <div className="h-20 flex items-center justify-center border-b border-blue-800">
           <Anchor className="text-blue-300 mr-2" size={28} />
           {isSidebarOpen && <h1 className="text-white font-bold text-sm tracking-tight">TELECOM DIRECTORATE</h1>}
         </div>
-        
         <nav className="flex-1 py-8 space-y-2">
           <SidebarItem id="dashboard" icon={LayoutDashboard} label={isSidebarOpen ? "Dashboard" : ""} />
           <SidebarItem id="search" icon={Search} label={isSidebarOpen ? "Ship Registry" : ""} />
@@ -465,47 +596,80 @@ export default function MMSIAssignmentSystem() {
           <SidebarItem id="pool" icon={Radio} label={isSidebarOpen ? "MMSI Pool" : ""} />
           <SidebarItem id="deleted" icon={Trash2} label={isSidebarOpen ? "History" : ""} />
         </nav>
-
-        <button onClick={() => setSidebarOpen(!isSidebarOpen)} className="h-12 flex items-center justify-center text-blue-300 hover:text-white hover:bg-blue-800 transition-colors">
-          {isSidebarOpen ? <X size={20}/> : <Menu size={20}/>}
-        </button>
+        <div className="p-4 border-t border-blue-800">
+            <button onClick={() => setView('settings')} className={`w-full flex items-center ${isSidebarOpen ? 'justify-start px-6' : 'justify-center'} py-3 text-blue-300 hover:text-white hover:bg-blue-800 rounded transition-colors`}>
+                <Settings size={20} />
+                {isSidebarOpen && <span className="ml-3 font-medium">Settings</span>}
+            </button>
+        </div>
       </div>
 
-      {/* Main Content */}
       <div className="flex-1 flex flex-col overflow-hidden">
         <header className="h-20 bg-white border-b border-slate-200 flex items-center justify-between px-8 shadow-sm">
-          <div>
-            <h2 className="text-xl font-bold text-slate-800">MMSI Assignment</h2>
-            <p className="text-xs text-slate-500">Telecom Directorate</p>
-          </div>
-          <div className="flex items-center space-x-4">
-             <div className="text-right hidden sm:block">
-               <p className="text-sm font-bold text-slate-800">Admin User</p>
-               <p className="text-xs text-slate-500">Database Connected</p>
-             </div>
-             <div className="h-10 w-10 bg-blue-100 rounded-full flex items-center justify-center text-blue-700 font-bold">AD</div>
-          </div>
+          <div><h2 className="text-xl font-bold text-slate-800">MMSI Assignment</h2><p className="text-xs text-slate-500">Telecom Directorate</p></div>
+          <div className="flex items-center space-x-4"><div className="text-right hidden sm:block"><p className="text-sm font-bold text-slate-800">Admin User</p><p className="text-xs text-slate-500">Database Connected</p></div><div className="h-10 w-10 bg-blue-100 rounded-full flex items-center justify-center text-blue-700 font-bold">AD</div></div>
         </header>
 
         <main className="flex-1 overflow-y-auto p-8 relative">
-          
-          {/* Loading Overlay */}
-          {loading && (
-            <div className="absolute inset-0 bg-white/50 flex items-center justify-center z-40 backdrop-blur-sm">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-900"></div>
+          {loading && <div className="absolute inset-0 bg-white/50 flex items-center justify-center z-40 backdrop-blur-sm"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-900"></div></div>}
+          {notification && <div className={`fixed top-24 right-8 px-6 py-4 rounded-lg shadow-lg z-50 flex items-center text-white ${notification.type === 'error' ? 'bg-red-600' : 'bg-emerald-600'}`}>{notification.type === 'error' ? <AlertTriangle className="mr-3" size={20}/> : <CheckCircle className="mr-3" size={20} />}{notification.msg}</div>}
+
+          {view === 'dashboard' && (
+            <div className="space-y-8">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                <StatCard label="Active Ships" value={stats.totalActive} icon={Ship} color="bg-blue-600" />
+                <StatCard label="Available MMSI" value={stats.availableMmsi} icon={Radio} color="bg-emerald-500" />
+                <StatCard label="Total Registry" value={stats.totalPool} icon={FileText} color="bg-indigo-500" />
+                <StatCard label="Deleted / Archived" value={stats.deletedCount} icon={Trash2} color="bg-slate-500" />
+              </div>
+              <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-6">
+                <h3 className="text-lg font-bold text-slate-800 mb-4">System Status</h3>
+                <div className="space-y-4">
+                  <div className="flex items-center text-sm text-slate-600"><CheckCircle className="text-emerald-500 mr-2" size={16} /> Database Connected</div>
+                  <button onClick={() => fetchData(supabase)} className="mt-4 text-blue-600 text-sm font-semibold hover:underline flex items-center"><RefreshCw size={14} className="mr-1"/> Refresh Data</button>
+                </div>
+              </div>
             </div>
           )}
 
-          {notification && (
-            <div className={`fixed top-24 right-8 px-6 py-4 rounded-lg shadow-lg z-50 flex items-center text-white ${notification.type === 'error' ? 'bg-red-600' : 'bg-emerald-600'}`}>
-              {notification.type === 'error' ? <AlertTriangle className="mr-3" size={20}/> : <CheckCircle className="mr-3" size={20} />}
-              {notification.msg}
-            </div>
-          )}
-
-          {view === 'dashboard' && <DashboardView />}
-          {view === 'search' && <ShipListView />}
+          {view === 'settings' && <SettingsView />}
           {view === 'assign' && <AssignMmsiView />}
+
+          {view === 'search' && (
+             <div className="bg-white rounded-xl shadow-sm border border-slate-100 flex flex-col h-full">
+               <div className="p-6 border-b border-slate-100 flex flex-col sm:flex-row justify-between items-center gap-4">
+                 <h2 className="text-xl font-bold text-slate-800">Active Ship Registry</h2>
+                 <div className="relative w-full sm:w-72">
+                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" size={18} />
+                   <input type="text" placeholder="Search Name, MMSI..." className="w-full pl-10 pr-4 py-2 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)}/>
+                 </div>
+               </div>
+               <div className="overflow-x-auto flex-1">
+                 <table className="w-full text-left">
+                   <thead className="bg-slate-50 text-slate-500 text-sm uppercase">
+                        <tr>
+                            <th className="px-6 py-4">MMSI</th>
+                            <th className="px-6 py-4">Name</th>
+                            <th className="px-6 py-4">Call Sign</th>
+                            <th className="px-6 py-4">Reg No</th>
+                            <th className="px-6 py-4">Owner</th>
+                        </tr>
+                   </thead>
+                   <tbody className="divide-y divide-slate-100 cursor-pointer">
+                     {activeShips.filter(s => (s.ship_name?.toLowerCase().includes(searchTerm.toLowerCase()) || s.mmsi?.includes(searchTerm))).map(ship => (
+                       <tr key={ship.mmsi} onClick={() => setSelectedShip(ship)} className="hover:bg-blue-50 transition-colors">
+                         <td className="px-6 py-4 font-mono text-blue-600 font-medium">{ship.mmsi}</td>
+                         <td className="px-6 py-4 font-medium text-slate-800">{ship.ship_name}</td>
+                         <td className="px-6 py-4 text-slate-600">{ship.call_sign}</td>
+                         <td className="px-6 py-4 text-slate-600 font-mono text-xs">{ship.reg_no || '-'}</td>
+                         <td className="px-6 py-4 text-slate-600 text-sm">{ship.owner_name}</td>
+                       </tr>
+                     ))}
+                   </tbody>
+                 </table>
+               </div>
+             </div>
+          )}
           
           {view === 'pool' && (
             <div className="bg-white rounded-xl shadow-sm p-6">
@@ -530,20 +694,12 @@ export default function MMSIAssignmentSystem() {
           {view === 'deleted' && (
              <div className="bg-white rounded-xl shadow-sm p-6">
                <h3 className="text-lg font-bold mb-4 text-red-700">Deleted / Archived Ships</h3>
-               <div className="overflow-x-auto">
-               <table className="w-full text-left">
-                  <thead className="bg-red-50 text-red-800 text-sm"><tr><th className="p-3">MMSI</th><th className="p-3">Name</th><th className="p-3">Reason</th></tr></thead>
+               <table className="w-full text-left text-sm">
+                  <thead className="bg-red-50 text-red-800"><tr><th className="p-3">MMSI</th><th className="p-3">Name</th><th className="p-3">Reason</th></tr></thead>
                   <tbody className="divide-y">
-                    {deletedShips.map(s => (
-                      <tr key={s.id || s.mmsi}>
-                        <td className="p-3 font-mono">{s.mmsi}</td>
-                        <td className="p-3">{s.ship_name}</td>
-                        <td className="p-3 text-slate-500">{s.reason}</td>
-                      </tr>
-                    ))}
+                    {deletedShips.map(s => <tr key={s.id}><td className="p-3 font-mono">{s.mmsi}</td><td className="p-3">{s.ship_name}</td><td className="p-3">{s.reason}</td></tr>)}
                   </tbody>
                 </table>
-                </div>
              </div>
           )}
         </main>
