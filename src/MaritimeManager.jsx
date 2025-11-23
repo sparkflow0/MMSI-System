@@ -4,7 +4,10 @@ import {
   Radio, CheckCircle, AlertTriangle, Menu, X, Save, RefreshCw, 
   Settings, Upload, Split, Check, Info, Edit2, Ban, ListX, FileSearch, 
   Loader2, Eye, History, Users, Shield, LogOut, Clock,
-  FileCheck, Activity, AlertOctagon, UserPlus, Key
+  FileCheck, Activity, AlertOctagon, UserPlus, Key,
+  LucideTowerControl,
+  TowerControl,
+  RadioTower
 } from 'lucide-react';
 
 // --- CONFIGURATION ---
@@ -165,34 +168,38 @@ const analyzeCertificateWithAI = async (imageBase64) => {
     }
 };
 
-// --- SUB-COMPONENTS (Defined BEFORE Main Component to avoid ReferenceError) ---
+// --- SUB-COMPONENTS ---
 
-const SidebarItem = ({ id, icon: Icon, label, setView, currentView, isMobile, closeMobileMenu }) => (
-  <button
-    onClick={() => { setView(id); if(isMobile) closeMobileMenu(); }}
-    className={`w-full flex items-center space-x-3 px-6 py-4 transition-colors ${
-      currentView === id ? 'bg-blue-800 text-white border-r-4 border-blue-400' : 'text-blue-100 hover:bg-blue-800'
-    }`}
-  >
-    <Icon size={20} />
-    <span className="font-medium">{label}</span>
-  </button>
-);
+function SidebarItem({ id, icon: Icon, label, setView, currentView, isMobile, closeMobileMenu }) {
+  return (
+    <button
+      onClick={() => { setView(id); if(isMobile) closeMobileMenu(); }}
+      className={`w-full flex items-center space-x-3 px-6 py-4 transition-colors ${
+        currentView === id ? 'bg-blue-800 text-white border-r-4 border-blue-400' : 'text-blue-100 hover:bg-blue-800'
+      }`}
+    >
+      <Icon size={20} />
+      <span className="font-medium">{label}</span>
+    </button>
+  );
+}
 
-const StatCard = ({ label, value, icon: Icon, color, subtext }) => (
-  <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 flex items-center space-x-4">
-    <div className={`p-4 rounded-full ${color} text-white`}>
-      <Icon size={24} />
+function StatCard({ label, value, icon: Icon, color, subtext }) {
+  return (
+    <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 flex items-center space-x-4">
+      <div className={`p-4 rounded-full ${color} text-white`}>
+        <Icon size={24} />
+      </div>
+      <div>
+        <p className="text-sm text-slate-500 font-medium uppercase tracking-wider">{label}</p>
+        <p className="text-2xl font-bold text-slate-800">{value ? value.toLocaleString() : 0}</p>
+        {subtext && <p className="text-xs text-slate-400 mt-1">{subtext}</p>}
+      </div>
     </div>
-    <div>
-      <p className="text-sm text-slate-500 font-medium uppercase tracking-wider">{label}</p>
-      <p className="text-2xl font-bold text-slate-800">{value ? value.toLocaleString() : 0}</p>
-      {subtext && <p className="text-xs text-slate-400 mt-1">{subtext}</p>}
-    </div>
-  </div>
-);
+  );
+}
 
-const LoginView = ({ handleLogin, loading }) => {
+function LoginView({ handleLogin, loading }) {
     const [email, setEmail] = useState('');
     const [pass, setPass] = useState('');
     return (
@@ -200,9 +207,9 @@ const LoginView = ({ handleLogin, loading }) => {
             <div className="bg-white p-10 rounded-2xl shadow-2xl w-full max-w-md">
                 <div className="text-center mb-8">
                     <div className="bg-blue-600 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 text-white">
-                        <Anchor size={32}/>
+                        <RadioTower size={32}/>
                     </div>
-                    <h1 className="text-2xl font-bold text-slate-800">Maritime Portal</h1>
+                    <h1 className="text-2xl font-bold text-slate-800">MMSI Database</h1>
                     <p className="text-slate-500">MMSI Assignment System</p>
                 </div>
                 <form onSubmit={(e) => { e.preventDefault(); handleLogin(email, pass); }} className="space-y-4">
@@ -213,107 +220,10 @@ const LoginView = ({ handleLogin, loading }) => {
             </div>
         </div>
     );
-};
+}
 
-const UserManagementView = ({ usersList, updateUserRole, createUser, changeUserPassword }) => {
-  const [isCreating, setIsCreating] = useState(false);
-  const [newUser, setNewUser] = useState({ email: '', password: '', role: 'requester' });
-  const [resettingUser, setResettingUser] = useState(null); 
-  const [newPass, setNewPass] = useState('');
-
-  const handleCreate = async (e) => {
-    e.preventDefault();
-    await createUser(newUser.email, newUser.password, newUser.role);
-    setIsCreating(false);
-    setNewUser({ email: '', password: '', role: 'requester' });
-  };
-  
-  const handlePasswordReset = async (e) => {
-      e.preventDefault();
-      if(!resettingUser || !newPass) return;
-      await changeUserPassword(resettingUser, newPass);
-      setResettingUser(null);
-      setNewPass('');
-  };
-
-  return (
-    <div className="bg-white rounded-xl shadow p-6">
-        <div className="flex justify-between items-center mb-6">
-            <h3 className="text-xl font-bold text-slate-800 flex items-center"><Users className="mr-2"/> User Access Management</h3>
-            <button onClick={() => setIsCreating(!isCreating)} className="bg-blue-600 text-white px-4 py-2 rounded-lg flex items-center hover:bg-blue-700">
-                <UserPlus size={18} className="mr-2"/> Add User
-            </button>
-        </div>
-
-        {isCreating && (
-            <div className="mb-6 p-4 bg-blue-50 rounded-lg border border-blue-100">
-                <h4 className="font-bold text-blue-800 mb-3">Create New User</h4>
-                <form onSubmit={handleCreate} className="flex gap-4 items-end">
-                    <div className="flex-1">
-                        <label className="block text-xs font-bold text-blue-600 mb-1">Email</label>
-                        <input type="email" required value={newUser.email} onChange={e=>setNewUser({...newUser, email: e.target.value})} className="w-full p-2 border rounded" />
-                    </div>
-                    <div className="flex-1">
-                        <label className="block text-xs font-bold text-blue-600 mb-1">Password</label>
-                        <input type="password" required value={newUser.password} onChange={e=>setNewUser({...newUser, password: e.target.value})} className="w-full p-2 border rounded" />
-                    </div>
-                    <div className="w-32">
-                        <label className="block text-xs font-bold text-blue-600 mb-1">Role</label>
-                        <select value={newUser.role} onChange={e=>setNewUser({...newUser, role: e.target.value})} className="w-full p-2 border rounded">
-                            <option value="requester">Requester</option>
-                            <option value="user">User</option>
-                            <option value="admin">Admin</option>
-                        </select>
-                    </div>
-                    <button type="submit" className="bg-blue-600 text-white px-4 py-2 rounded font-bold hover:bg-blue-700">Create</button>
-                </form>
-            </div>
-        )}
-        
-        {resettingUser && (
-            <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-                <div className="bg-white p-6 rounded-lg shadow-xl w-96">
-                    <h4 className="text-lg font-bold mb-4">Reset Password</h4>
-                    <form onSubmit={handlePasswordReset} className="space-y-4">
-                        <div>
-                            <label className="block text-sm font-bold text-slate-700 mb-1">New Password</label>
-                            <input type="password" required value={newPass} onChange={e=>setNewPass(e.target.value)} className="w-full p-2 border rounded" placeholder="Enter new password"/>
-                        </div>
-                        <div className="flex justify-end gap-2">
-                            <button type="button" onClick={() => setResettingUser(null)} className="px-3 py-1 text-slate-500 hover:bg-slate-100 rounded">Cancel</button>
-                            <button type="submit" className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700">Save</button>
-                        </div>
-                    </form>
-                </div>
-            </div>
-        )}
-
-        <table className="w-full text-left text-sm">
-            <thead className="bg-slate-100"><tr><th className="p-3">Email</th><th className="p-3">Role</th><th className="p-3">Actions</th></tr></thead>
-            <tbody>
-                {usersList.map(u => (
-                    <tr key={u.id} className="border-b">
-                        <td className="p-3">{u.email}</td>
-                        <td className="p-3"><span className={`px-2 py-1 rounded text-xs font-bold uppercase ${u.role==='admin'?'bg-purple-100 text-purple-700':u.role==='user'?'bg-blue-100 text-blue-700':'bg-slate-100'}`}>{u.role}</span></td>
-                        <td className="p-3 flex items-center gap-2">
-                            <select value={u.role} onChange={(e) => updateUserRole(u.user_id, e.target.value)} className="border rounded p-1 text-xs">
-                                <option value="requester">Requester</option>
-                                <option value="user">Officer</option>
-                                <option value="admin">Admin</option>
-                            </select>
-                            <button onClick={() => setResettingUser(u.user_id)} title="Change Password" className="p-1 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded">
-                                <Key size={16}/>
-                            </button>
-                        </td>
-                    </tr>
-                ))}
-            </tbody>
-        </table>
-    </div>
-  );
-};
-
-const RequestManagementView = ({ requests, processRequest }) => (
+function RequestManagementView({ requests, processRequest }) {
+    return (
     <div className="space-y-6">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="bg-white p-4 rounded-lg shadow border-l-4 border-amber-500">
@@ -343,9 +253,41 @@ const RequestManagementView = ({ requests, processRequest }) => (
             )}
         </div>
     </div>
-);
+    );
+}
 
-const AuditLogView = ({ auditLogs }) => (
+function MyRequestsView({ requests }) {
+    return (
+        <div className="bg-white rounded-xl shadow p-6">
+            <h3 className="text-lg font-bold mb-4 text-slate-800">My Submitted Requests</h3>
+            <div className="space-y-4">
+                {requests.length === 0 && <p className="text-slate-400 italic">No requests submitted yet.</p>}
+                {requests.map(req => (
+                    <div key={req.id} className="border rounded-lg p-4 flex justify-between items-center">
+                        <div>
+                            <p className="font-bold text-slate-800">{req.ship_name}</p>
+                            <p className="text-sm text-slate-500">Submitted on: {new Date(req.created_at).toLocaleDateString()}</p>
+                        </div>
+                        <div className="text-right">
+                            <p className="text-xs text-slate-400 font-mono mb-1">{req.requested_mmsi ? `Requested: ${req.requested_mmsi}` : 'Auto-Assign'}</p>
+                            {req.status === 'pending' && <span className="bg-amber-100 text-amber-800 px-3 py-1 rounded-full text-xs font-bold">Pending</span>}
+                            {req.status === 'approved' && <span className="bg-emerald-100 text-emerald-800 px-3 py-1 rounded-full text-xs font-bold">Approved</span>}
+                            {req.status === 'rejected' && (
+                                <div>
+                                    <span className="bg-red-100 text-red-800 px-3 py-1 rounded-full text-xs font-bold">Rejected</span>
+                                    <p className="text-xs text-red-600 mt-1">{req.rejection_reason}</p>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                ))}
+            </div>
+        </div>
+    );
+}
+
+function AuditLogView({ auditLogs }) {
+    return (
     <div className="bg-white rounded-xl shadow p-6">
         <h3 className="text-lg font-bold mb-4 flex items-center"><Activity className="mr-2"/> System Activity Log</h3>
         <div className="overflow-x-auto h-96">
@@ -364,9 +306,10 @@ const AuditLogView = ({ auditLogs }) => (
             </table>
         </div>
     </div>
-);
+    );
+}
 
-const ConflictModal = ({ conflicts, resolved, resolve, finalize, setConflicts }) => {
+function ConflictModal({ conflicts, resolved, resolve, finalize, setConflicts }) {
     if (!conflicts || conflicts.length === 0) return null;
     const resolvedCount = resolved.length;
     const totalCount = conflicts.length;
@@ -421,9 +364,9 @@ const ConflictModal = ({ conflicts, resolved, resolve, finalize, setConflicts })
             </div>
         </div>
     );
-};
+}
 
-const DetailModal = ({ selectedShip, setSelectedShip, updateShip, revokeShip, uploadFile, supabaseUrl, onViewHistory }) => {
+function DetailModal({ selectedShip, setSelectedShip, updateShip, revokeShip, uploadFile, supabaseUrl, onViewHistory }) {
     if (!selectedShip) return null;
     
     const [isEditing, setIsEditing] = useState(false);
@@ -621,9 +564,9 @@ const DetailModal = ({ selectedShip, setSelectedShip, updateShip, revokeShip, up
             </div>
         </div>
     );
-};
+}
 
-const HistoryView = ({ historyData, supabaseUrl, searchMmsi, setSearchMmsi }) => {
+function HistoryView({ historyData, supabaseUrl, searchMmsi, setSearchMmsi }) {
     const filteredHistory = searchMmsi 
         ? historyData.filter(h => h.mmsi.includes(searchMmsi))
         : historyData;
@@ -680,9 +623,10 @@ const HistoryView = ({ historyData, supabaseUrl, searchMmsi, setSearchMmsi }) =>
             </div>
         </div>
     );
-};
+}
 
-const SettingsView = ({ handleImport }) => (
+function SettingsView({ handleImport }) {
+  return (
   <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-8 max-w-2xl mx-auto mt-8">
       <h3 className="text-xl font-bold text-slate-800 mb-6 flex items-center"><Settings className="mr-2" /> System Administration</h3>
       <div className="mb-8 p-6 bg-slate-50 rounded-lg border border-slate-200">
@@ -693,9 +637,10 @@ const SettingsView = ({ handleImport }) => (
           </label>
       </div>
   </div>
-);
+  );
+}
 
-const ExclusionsView = ({ exclusions, addExclusion, removeExclusion, showNotification }) => {
+function ExclusionsView({ exclusions, addExclusion, removeExclusion, showNotification }) {
     const [form, setForm] = useState({ start: '', end: '', reason: '' });
     const handleSubmit = (e) => {
         e.preventDefault();
@@ -731,9 +676,12 @@ const ExclusionsView = ({ exclusions, addExclusion, removeExclusion, showNotific
             </div>
         </div>
     );
-};
+}
 
-const AssignMmsiView = ({ MMSI_START, MMSI_END, assignMmsi, showNotification, findNextAvailableMmsi, uploadFile }) => {
+function AssignMmsiView({ MMSI_START, MMSI_END, assignMmsi, showNotification, findNextAvailableMmsi, uploadFile, currentUserRole, submitRequest }) {
+  // If requester, show Request Mode
+  const isRequester = currentUserRole === 'requester';
+  
   const [formData, setFormData] = useState({ 
       name: '', owner: '', callSign: '', regNo: '', type: 'Gen', mmsi: '', 
       regDate: '', expDate: '', certPath: null 
@@ -753,7 +701,7 @@ const AssignMmsiView = ({ MMSI_START, MMSI_END, assignMmsi, showNotification, fi
       try {
           const imageBase64 = await convertPdfToImage(file);
           const result = await analyzeCertificateWithAI(imageBase64);
-          const tempId = `temp-${Date.now()}`;
+          const tempId = `req-${Date.now()}`;
           const uploadedPath = await uploadFile(file, tempId);
           setFormData(prev => ({
               ...prev,
@@ -775,17 +723,36 @@ const AssignMmsiView = ({ MMSI_START, MMSI_END, assignMmsi, showNotification, fi
           setIsAnalyzing(false);
       }
   };
+  
+  const handleSubmit = (e) => {
+      e.preventDefault();
+      if (isRequester) {
+          submitRequest({
+              ship_name: formData.name,
+              owner_name: formData.owner,
+              call_sign: formData.callSign,
+              reg_no: formData.regNo,
+              ship_type: formData.type,
+              registration_date: formData.regDate,
+              expiry_date: formData.expDate,
+              certificate_path: formData.certPath,
+              requested_mmsi: formData.mmsi
+          });
+      } else {
+          assignMmsi(formData);
+      }
+  };
 
   return (
     <div className="max-w-2xl mx-auto bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden">
-      <div className="bg-blue-900 px-6 py-4 flex items-center justify-between"><h2 className="text-white font-bold text-lg flex items-center"><Plus className="mr-2" /> Assign New MMSI</h2></div>
+      <div className="bg-blue-900 px-6 py-4 flex items-center justify-between"><h2 className="text-white font-bold text-lg flex items-center"><Plus className="mr-2" /> {isRequester ? "Request MMSI Assignment" : "Assign New MMSI"}</h2></div>
       <div className="px-8 pt-6">
           <label className={`flex items-center justify-center w-full p-4 border-2 border-dashed rounded-lg transition-colors cursor-pointer ${isAnalyzing ? 'bg-blue-50 border-blue-300' : 'bg-slate-50 border-slate-300 hover:border-blue-400'}`}>
               {isAnalyzing ? (<div className="flex items-center text-blue-600"><Loader2 className="animate-spin mr-2"/> Analyzing & Uploading...</div>) : (<div className="flex flex-col items-center text-slate-500"><div className="flex items-center"><FileSearch className="mr-2"/> <span className="font-medium">Auto-Fill from Certificate</span></div><span className="text-xs mt-1">Upload PDF to auto-extract & store</span></div>)}
               <input type="file" className="hidden" accept=".pdf" onChange={handleCertificateUpload} disabled={isAnalyzing} />
           </label>
       </div>
-      <form onSubmit={(e) => { e.preventDefault(); assignMmsi(formData); }} className="p-8 space-y-6">
+      <form onSubmit={handleSubmit} className="p-8 space-y-6">
         <div className="grid grid-cols-2 gap-6">
           <div><label className="text-sm font-semibold">Vessel Name</label><input value={formData.name} onChange={e=>setFormData({...formData, name: e.target.value})} required className="w-full p-3 border rounded-lg" /></div>
           <div><label className="text-sm font-semibold">Call Sign</label><input value={formData.callSign} onChange={e=>setFormData({...formData, callSign: e.target.value})} className="w-full p-3 border rounded-lg" /></div>
@@ -800,19 +767,17 @@ const AssignMmsiView = ({ MMSI_START, MMSI_END, assignMmsi, showNotification, fi
            <div className="col-span-2 text-xs text-slate-400 flex items-center"><Info size={12} className="mr-1"/> Empty dates will be flagged for review later.</div>
         </div>
         <div className="bg-slate-50 p-4 rounded-lg border border-slate-200">
-          <label className="text-sm font-bold text-slate-700 flex justify-between items-center mb-2"><span>Assign MMSI Number</span><span className="text-xs font-normal text-slate-500">Range: {formatMmsi(MMSI_START)} - {formatMmsi(MMSI_END)}</span></label>
-          <div className="flex gap-2">
-              <input type="text" required className="flex-1 p-3 border rounded-lg font-mono text-blue-700 font-bold" value={formData.mmsi} onChange={e => setFormData({...formData, mmsi: e.target.value})} placeholder="408 XXX XXX"/>
-              <button type="button" onClick={handleAutoSuggest} className="px-4 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 font-medium text-sm flex items-center"><RefreshCw size={16} className="mr-2"/> Find Next Free</button>
-          </div>
+            <label className="text-sm font-bold text-slate-700 flex justify-between items-center mb-2"><span>{isRequester ? "Requested MMSI Number" : "Assign MMSI Number"}</span><span className="text-xs font-normal text-slate-500">Range: {formatMmsi(MMSI_START)} - {formatMmsi(MMSI_END)}</span></label>
+            <div className="flex gap-2"><input type="text" required className="flex-1 p-3 border rounded-lg font-mono text-blue-700 font-bold" value={formData.mmsi} onChange={e => setFormData({...formData, mmsi: e.target.value})} placeholder="408 XXX XXX"/><button type="button" onClick={handleAutoSuggest} className="px-4 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 font-medium text-sm flex items-center"><RefreshCw size={16} className="mr-2"/> Find Next Free</button></div>
+            {isRequester && <p className="text-xs text-slate-500 mt-2">This number will be reserved for you upon approval.</p>}
         </div>
-        <div className="pt-4 flex justify-end"><button type="submit" className="px-6 py-3 rounded-lg bg-blue-600 text-white font-medium">Confirm Assignment</button></div>
+        <div className="pt-4 flex justify-end"><button type="submit" className="px-6 py-3 rounded-lg bg-blue-600 text-white font-medium">{isRequester ? "Submit Request" : "Confirm Assignment"}</button></div>
       </form>
     </div>
   );
-};
+}
 
-const ShipListView = ({ activeShips, searchTerm, setSearchTerm, statusFilter, setStatusFilter, setSelectedShip }) => {
+function ShipListView({ activeShips, searchTerm, setSearchTerm, statusFilter, setStatusFilter, setSelectedShip }) {
   const filtered = activeShips.filter(s => {
       const matchesSearch = s.ship_name?.toLowerCase().includes(searchTerm.toLowerCase()) || s.mmsi?.includes(searchTerm);
       const status = getShipStatus(s.expiry_date, s.registration_date, s.certificate_path);
@@ -824,18 +789,8 @@ const ShipListView = ({ activeShips, searchTerm, setSearchTerm, statusFilter, se
   return (
     <div className="bg-white rounded-xl shadow-sm border border-slate-100 flex flex-col h-full">
       <div className="p-6 border-b border-slate-100">
-          <div className="flex flex-col sm:flex-row justify-between items-center gap-4 mb-4">
-              <h2 className="text-xl font-bold text-slate-800">Assigned MMSI & Registry</h2>
-              <div className="relative w-full sm:w-72">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" size={18} />
-                  <input type="text" placeholder="Search Name, MMSI..." className="w-full pl-10 pr-4 py-2 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)}/>
-              </div>
-          </div>
-          <div className="flex space-x-2 overflow-x-auto pb-2">
-              {['all', 'active', 'expiring', 'expired', 'missing'].map(f => (
-                  <button key={f} onClick={() => setStatusFilter(f)} className={`px-3 py-1.5 rounded-full text-xs font-bold uppercase whitespace-nowrap transition-colors ${statusFilter === f ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}>{f === 'missing' ? 'Needs Review' : f}</button>
-              ))}
-          </div>
+          <div className="flex flex-col sm:flex-row justify-between items-center gap-4 mb-4"><h2 className="text-xl font-bold text-slate-800">Assigned MMSI & Registry</h2><div className="relative w-full sm:w-72"><Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" size={18} /><input type="text" placeholder="Search Name, MMSI..." className="w-full pl-10 pr-4 py-2 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)}/></div></div>
+          <div className="flex space-x-2 overflow-x-auto pb-2">{['all', 'active', 'expiring', 'expired', 'missing'].map(f => (<button key={f} onClick={() => setStatusFilter(f)} className={`px-3 py-1.5 rounded-full text-xs font-bold uppercase whitespace-nowrap transition-colors ${statusFilter === f ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}>{f === 'missing' ? 'Needs Review' : f}</button>))}</div>
       </div>
       <div className="overflow-x-auto flex-1">
         <table className="w-full text-left text-sm">
@@ -849,13 +804,7 @@ const ShipListView = ({ activeShips, searchTerm, setSearchTerm, statusFilter, se
                 else if (status === 'expired') { statusLabel = <span className="text-red-600 font-bold">Expired</span>; } 
                 else if (status === 'expiring') { statusLabel = <span className="text-orange-500 font-bold">Expiring</span>; }
                 return (
-                  <tr key={ship.mmsi} onClick={() => setSelectedShip(ship)} className={rowClass}>
-                      <td className="px-6 py-4 font-mono text-blue-600 font-medium">{formatMmsi(ship.mmsi)}</td>
-                      <td className="px-6 py-4 font-medium text-slate-800">{ship.ship_name}</td>
-                      <td className="px-6 py-4 text-slate-600 font-mono text-xs">{ship.reg_no || '-'}</td>
-                      <td className="px-6 py-4 text-slate-600">{ship.expiry_date || '-'}</td>
-                      <td className="px-6 py-4">{statusLabel}</td>
-                  </tr>
+                  <tr key={ship.mmsi} onClick={() => setSelectedShip(ship)} className={rowClass}><td className="px-6 py-4 font-mono text-blue-600 font-medium">{formatMmsi(ship.mmsi)}</td><td className="px-6 py-4 font-medium text-slate-800">{ship.ship_name}</td><td className="px-6 py-4 text-slate-600 font-mono text-xs">{ship.reg_no || '-'}</td><td className="px-6 py-4 text-slate-600">{ship.expiry_date || '-'}</td><td className="px-6 py-4">{statusLabel}</td></tr>
                 );
             })}
           </tbody>
@@ -863,7 +812,75 @@ const ShipListView = ({ activeShips, searchTerm, setSearchTerm, statusFilter, se
       </div>
     </div>
   );
-};
+}
+
+function UserManagementView({ usersList, updateUserRole, createUser, changeUserPassword }) {
+  const [isCreating, setIsCreating] = useState(false);
+  const [newUser, setNewUser] = useState({ email: '', password: '', role: 'requester' });
+  const [resettingUser, setResettingUser] = useState(null); 
+  const [newPass, setNewPass] = useState('');
+
+  const handleCreate = async (e) => {
+    e.preventDefault();
+    await createUser(newUser.email, newUser.password, newUser.role);
+    setIsCreating(false);
+    setNewUser({ email: '', password: '', role: 'requester' });
+  };
+  
+  const handlePasswordReset = async (e) => {
+      e.preventDefault();
+      if(!resettingUser || !newPass) return;
+      await changeUserPassword(resettingUser, newPass);
+      setResettingUser(null);
+      setNewPass('');
+  };
+
+  return (
+    <div className="bg-white rounded-xl shadow p-6">
+        <div className="flex justify-between items-center mb-6">
+            <h3 className="text-xl font-bold text-slate-800 flex items-center"><Users className="mr-2"/> User Access Management</h3>
+            <button onClick={() => setIsCreating(!isCreating)} className="bg-blue-600 text-white px-4 py-2 rounded-lg flex items-center hover:bg-blue-700"><UserPlus size={18} className="mr-2"/> Add User</button>
+        </div>
+        {isCreating && (
+            <div className="mb-6 p-4 bg-blue-50 rounded-lg border border-blue-100">
+                <h4 className="font-bold text-blue-800 mb-3">Create New User</h4>
+                <form onSubmit={handleCreate} className="flex gap-4 items-end">
+                    <div className="flex-1"><label className="block text-xs font-bold text-blue-600 mb-1">Email</label><input type="email" required value={newUser.email} onChange={e=>setNewUser({...newUser, email: e.target.value})} className="w-full p-2 border rounded" /></div>
+                    <div className="flex-1"><label className="block text-xs font-bold text-blue-600 mb-1">Password</label><input type="password" required value={newUser.password} onChange={e=>setNewUser({...newUser, password: e.target.value})} className="w-full p-2 border rounded" /></div>
+                    <div className="w-32"><label className="block text-xs font-bold text-blue-600 mb-1">Role</label><select value={newUser.role} onChange={e=>setNewUser({...newUser, role: e.target.value})} className="w-full p-2 border rounded"><option value="requester">Requester</option><option value="user">User</option><option value="admin">Admin</option></select></div>
+                    <button type="submit" className="bg-blue-600 text-white px-4 py-2 rounded font-bold hover:bg-blue-700">Create</button>
+                </form>
+            </div>
+        )}
+        {resettingUser && (
+            <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+                <div className="bg-white p-6 rounded-lg shadow-xl w-96">
+                    <h4 className="text-lg font-bold mb-4">Reset Password</h4>
+                    <form onSubmit={handlePasswordReset} className="space-y-4">
+                        <div><label className="block text-sm font-bold text-slate-700 mb-1">New Password</label><input type="password" required value={newPass} onChange={e=>setNewPass(e.target.value)} className="w-full p-2 border rounded" placeholder="Enter new password"/></div>
+                        <div className="flex justify-end gap-2"><button type="button" onClick={() => setResettingUser(null)} className="px-3 py-1 text-slate-500 hover:bg-slate-100 rounded">Cancel</button><button type="submit" className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700">Save</button></div>
+                    </form>
+                </div>
+            </div>
+        )}
+        <table className="w-full text-left text-sm">
+            <thead className="bg-slate-100"><tr><th className="p-3">Email</th><th className="p-3">Role</th><th className="p-3">Actions</th></tr></thead>
+            <tbody>
+                {usersList.map(u => (
+                    <tr key={u.id} className="border-b">
+                        <td className="p-3">{u.email}</td>
+                        <td className="p-3"><span className={`px-2 py-1 rounded text-xs font-bold uppercase ${u.role==='admin'?'bg-purple-100 text-purple-700':u.role==='user'?'bg-blue-100 text-blue-700':'bg-slate-100'}`}>{u.role}</span></td>
+                        <td className="p-3 flex items-center gap-2">
+                            <select value={u.role} onChange={(e) => updateUserRole(u.user_id, e.target.value)} className="border rounded p-1 text-xs"><option value="requester">Requester</option><option value="user">Officer</option><option value="admin">Admin</option></select>
+                            <button onClick={() => setResettingUser(u.user_id)} title="Change Password" className="p-1 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded"><Key size={16}/></button>
+                        </td>
+                    </tr>
+                ))}
+            </tbody>
+        </table>
+    </div>
+  );
+}
 
 // --- Main Component ---
 
@@ -871,7 +888,7 @@ export default function MMSIPlatform() {
   // --- System State ---
   const [supabase, setSupabase] = useState(null);
   const [session, setSession] = useState(null);
-  const [currentUserRole, setCurrentUserRole] = useState(null); // 'admin', 'user', 'requester'
+  const [currentUserRole, setCurrentUserRole] = useState(null); 
   const [loading, setLoading] = useState(false);
   const [notification, setNotification] = useState(null);
   
@@ -886,8 +903,8 @@ export default function MMSIPlatform() {
   
   // --- UI State ---
   const [view, setView] = useState('login'); 
-  const [isSidebarOpen, setSidebarOpen] = useState(true); // Desktop toggle
-  const [isMobileMenuOpen, setMobileMenuOpen] = useState(false); // Mobile toggle
+  const [isSidebarOpen, setSidebarOpen] = useState(true); 
+  const [isMobileMenuOpen, setMobileMenuOpen] = useState(false); 
   const [searchTerm, setSearchTerm] = useState('');
   const [historySearch, setHistorySearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -901,12 +918,10 @@ export default function MMSIPlatform() {
   const MMSI_START = 408000001;
   const MMSI_END = 408999998;
 
-  // 1. Initialize Supabase
   useEffect(() => {
     const initSupabase = () => {
        let envUrl, envKey;
        try {
-           // Safe access to env vars
            if (typeof import.meta !== 'undefined' && import.meta.env) {
                envUrl = import.meta.env.VITE_SUPABASE_URL;
                envKey = import.meta.env.VITE_SUPABASE_KEY;
@@ -914,8 +929,6 @@ export default function MMSIPlatform() {
        } catch (e) {
            console.warn("Environment variables not accessible.");
        }
-       
-       // Fallback if empty (prevents crash, shows config error screen)
        if (envUrl) setSupabaseUrl(envUrl);
 
        if (!window.supabase && envUrl && envKey) {
@@ -935,38 +948,30 @@ export default function MMSIPlatform() {
     initSupabase();
   }, []);
 
-  // 2. Auth Listener
   useEffect(() => {
       if (!supabase) return;
-      
-      // Check active session
       supabase.auth.getSession().then(({ data: { session } }) => {
           setSession(session);
           if (session) fetchUserProfile(session.user.id);
           else setView('login');
       });
-
       const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
           setSession(session);
           if (session) fetchUserProfile(session.user.id);
           else setView('login');
       });
-
       return () => subscription.unsubscribe();
   }, [supabase]);
 
-  // 3. Fetch User Role & Data
   const fetchUserProfile = async (userId) => {
       if(!supabase) return;
       const { data, error } = await supabase.from('user_roles').select('role').eq('user_id', userId).single();
-      
       if (data) {
           setCurrentUserRole(data.role);
           setView('dashboard');
           fetchAllData();
           logActivity('login', `User logged in as ${data.role}`);
       } else {
-          // Auto-create requester role for new users
           await supabase.from('user_roles').insert([{ user_id: userId, role: 'requester', email: session?.user?.email }]);
           setCurrentUserRole('requester');
           setView('dashboard');
@@ -977,8 +982,6 @@ export default function MMSIPlatform() {
   const fetchAllData = async () => {
       if(!supabase) return;
       setLoading(true);
-      
-      // Parallel fetching for speed
       const [ships, pool, hist, excl, reqs, users, logs] = await Promise.all([
           supabase.from('active_ships').select('*').order('created_at', { ascending: false }),
           supabase.from('mmsi_pool').select('*').order('mmsi', { ascending: true }).limit(1000),
@@ -988,7 +991,6 @@ export default function MMSIPlatform() {
           supabase.from('user_roles').select('*'),
           supabase.from('audit_logs').select('*').order('created_at', { ascending: false }).limit(100)
       ]);
-
       if(ships.data) setActiveShips(ships.data);
       if(pool.data) setMmsiPool(pool.data);
       if(hist.data) setHistoryData(hist.data);
@@ -996,11 +998,9 @@ export default function MMSIPlatform() {
       if(reqs.data) setRequests(reqs.data);
       if(users.data) setUsersList(users.data);
       if(logs.data) setAuditLogs(logs.data);
-      
       setLoading(false);
   };
 
-  // --- LOGGING SYSTEM ---
   const logActivity = async (action, details) => {
       if(!supabase || !session) return;
       await supabase.from('audit_logs').insert([{
@@ -1025,7 +1025,6 @@ export default function MMSIPlatform() {
           new_password: password, 
           new_role: role 
       });
-      
       if (error) {
           showNotification("Failed to create user: " + error.message, "error");
       } else {
@@ -1043,7 +1042,6 @@ export default function MMSIPlatform() {
           target_user_id: userId, 
           new_password: newPassword 
       });
-      
       if (error) {
           showNotification("Failed to update password: " + error.message, "error");
       } else {
@@ -1053,13 +1051,9 @@ export default function MMSIPlatform() {
       setLoading(false);
   };
 
-  // --- CALCULATED STATS ---
   const stats = useMemo(() => {
-     // ... (Previous calculation logic preserved, simplified for brevity)
-     // Calculate available logic same as before...
      const uniqueAssigned = new Set(activeShips.map(s => parseInt(s.mmsi, 10)));
-     const available = (MMSI_END - MMSI_START) - uniqueAssigned.size; // Simplified approximation
-     
+     const available = (MMSI_END - MMSI_START) - uniqueAssigned.size; 
      return {
          active: activeShips.length,
          available: available,
@@ -1070,8 +1064,6 @@ export default function MMSIPlatform() {
 
   const findNextAvailableMmsi = () => {
       const assignedSet = new Set(activeShips.map(s => parseInt(s.mmsi, 10)));
-      
-      // Helper to check if a number is excluded
       const isExcluded = (mmsi) => {
           return exclusions.some(ex => {
              const start = parseInt(ex.start_mmsi, 10);
@@ -1079,7 +1071,6 @@ export default function MMSIPlatform() {
              return mmsi >= start && mmsi <= end;
           });
       };
-
       for (let i = MMSI_START; i <= MMSI_END; i++) {
           if (!assignedSet.has(i) && !isExcluded(i)) {
               return i.toString();
@@ -1098,16 +1089,13 @@ export default function MMSIPlatform() {
       return filePath;
   };
 
-  // --- ACTIONS ---
-
   const handleLogin = async (email, password) => {
       setLoading(true);
       const { error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) {
           showNotification("Login failed: " + error.message, "error");
-          setLoading(false); // Ensure loading stops on error
+          setLoading(false); 
       }
-      // Success is handled by auth listener
   };
 
   const handleLogout = async () => {
@@ -1121,7 +1109,6 @@ export default function MMSIPlatform() {
       setTimeout(() => setNotification(null), 4000);
   };
 
-  // --- Request Logic ---
   const submitRequest = async (formData) => {
       setLoading(true);
       const { error } = await supabase.from('mmsi_requests').insert([{
@@ -1142,14 +1129,13 @@ export default function MMSIPlatform() {
 
   const processRequest = async (request, action, reason = '') => {
       setLoading(true);
-      
       if (action === 'approve') {
-          // 1. Assign MMSI (Find free one)
-          // ... (Logic to find next free MMSI) ...
-          // Simplified for this snippet:
           const mmsiToAssign = findNextAvailableMmsi(); 
-
-          // 2. Insert into Active
+          if (!mmsiToAssign) {
+              showNotification("No MMSI Available", "error");
+              setLoading(false);
+              return;
+          }
           await supabase.from('active_ships').insert([{
               mmsi: mmsiToAssign,
               ship_name: request.ship_name,
@@ -1161,21 +1147,16 @@ export default function MMSIPlatform() {
               expiry_date: request.expiry_date,
               certificate_path: request.certificate_path
           }]);
-          
-          // 3. Update Request Status
           await supabase.from('mmsi_requests').update({ status: 'approved' }).eq('id', request.id);
-          
           logActivity('request_approved', `Approved ship ${request.ship_name}, Assigned ${mmsiToAssign}`);
       } else {
           await supabase.from('mmsi_requests').update({ status: 'rejected', rejection_reason: reason }).eq('id', request.id);
           logActivity('request_rejected', `Rejected ship ${request.ship_name}. Reason: ${reason}`);
       }
-      
       fetchAllData();
       setLoading(false);
   };
 
-  // Ship Actions
   const updateShip = async (updatedData) => {
     if (!supabase) return;
     setLoading(true);
@@ -1203,8 +1184,6 @@ export default function MMSIPlatform() {
   const revokeShip = async (ship, reason) => {
     if (!supabase) return;
     setLoading(true);
-    
-    // 1. Move to History (Revoke)
     await supabase.from('assignment_history').insert([{ 
         mmsi: ship.mmsi, 
         ship_name: ship.ship_name,
@@ -1216,15 +1195,11 @@ export default function MMSIPlatform() {
         expiry_date: ship.expiry_date,
         certificate_path: ship.certificate_path,
         assigned_at: ship.created_at,
-        revoked_at: new Date().toISOString(), // Add current timestamp for revoked_at
+        revoked_at: new Date().toISOString(), 
         revocation_reason: reason 
     }]);
-
-    // 2. Remove from Active
     await supabase.from('active_ships').delete().eq('mmsi', ship.mmsi);
-    // 3. Free up Pool
     await supabase.from('mmsi_pool').update({ status: 'Available', assigned_name: null }).eq('mmsi', ship.mmsi);
-
     showNotification('Assignment revoked and moved to history.');
     fetchData(supabase);
     if (selectedShip?.mmsi === ship.mmsi) setSelectedShip(null);
@@ -1309,7 +1284,18 @@ export default function MMSIPlatform() {
   if (view === 'login') return <LoginView handleLogin={handleLogin} loading={loading} />;
 
   return (
-    <div className="flex h-screen bg-slate-50 font-sans text-slate-900 overflow-hidden">
+    <div
+      className="relative flex h-screen bg-slate-50 font-sans text-slate-900 overflow-hidden"
+      style={{
+        backgroundImage: "url('/back.png')",
+        backgroundSize: 'cover',
+        backgroundRepeat: 'no-repeat',
+        backgroundPosition: 'center',
+      }}
+    >
+      {/* Blue overlay to fade the background image */}
+      <div className="absolute inset-0 bg-blue-900/80 pointer-events-none z-0" />
+
       <div className="md:hidden fixed top-0 left-0 right-0 h-16 bg-blue-900 flex items-center justify-between px-4 z-50">
          <span className="text-white font-bold">Maritime Portal</span>
          <button onClick={() => setMobileMenuOpen(!isMobileMenuOpen)} className="text-white"><Menu/></button>
@@ -1321,8 +1307,8 @@ export default function MMSIPlatform() {
           md:relative md:translate-x-0 flex flex-col shadow-xl
       `}>
         <div className="h-20 flex items-center justify-center border-b border-blue-800 mt-16 md:mt-0">
-          <Anchor className="text-blue-300 mr-2" size={28} />
-          <h1 className="text-white font-bold text-lg">PORT AUTHORITY</h1>
+          <RadioTower className="text-blue-300 mr-2" size={28} />
+          <h1 className="text-white font-bold text-lg">MMSI Database</h1>
         </div>
         
         <nav className="flex-1 py-8 space-y-2 overflow-y-auto">
@@ -1341,6 +1327,11 @@ export default function MMSIPlatform() {
                 <SidebarItem id="assign" icon={Plus} label="Assign MMSI" setView={setView} currentView={view} isMobile={true} closeMobileMenu={()=>setMobileMenuOpen(false)}/>
                 <SidebarItem id="history" icon={History} label="History" setView={setView} currentView={view} isMobile={true} closeMobileMenu={()=>setMobileMenuOpen(false)}/>
              </>
+          )}
+          
+          {/* Explicitly add Request MMSI button for Requesters */}
+          {currentUserRole === 'requester' && (
+              <SidebarItem id="assign" icon={Plus} label="Request MMSI" setView={setView} currentView={view} isMobile={true} closeMobileMenu={()=>setMobileMenuOpen(false)}/>
           )}
 
           {currentUserRole === 'admin' && (
@@ -1369,7 +1360,7 @@ export default function MMSIPlatform() {
       </div>
 
       {/* Main Content Area */}
-      <div className="flex-1 flex flex-col overflow-hidden pt-16 md:pt-0">
+      <div className="flex-1 flex flex-col overflow-hidden pt-16 md:pt-0 relative z-10">
         <main className="flex-1 overflow-y-auto p-4 md:p-8 relative">
           {notification && (
             <div className={`fixed top-4 right-4 md:top-8 md:right-8 px-6 py-4 rounded-lg shadow-lg z-50 flex items-center text-white animate-bounce ${notification.type === 'error' ? 'bg-red-600' : 'bg-emerald-600'}`}>
@@ -1382,7 +1373,7 @@ export default function MMSIPlatform() {
 
           {view === 'dashboard' && (
               <div className="space-y-6">
-                  <h2 className="text-2xl font-bold text-slate-800">Dashboard</h2>
+                  <h2 className="text-2xl font-bold text-white text-slate-800">Dashboard</h2>
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                     <StatCard label="Active Ships" value={stats.active} icon={Ship} color="bg-blue-600" />
                     {(currentUserRole === 'admin' || currentUserRole === 'user') && (
@@ -1407,9 +1398,13 @@ export default function MMSIPlatform() {
                 showNotification={showNotification} 
                 findNextAvailableMmsi={findNextAvailableMmsi} 
                 uploadFile={uploadFile} 
+                currentUserRole={currentUserRole} // Added prop
+                submitRequest={submitRequest}     // Added prop
             />
           )}
           
+          {view === 'my-requests' && <MyRequestsView requests={requests.filter(r => r.requester_email === session.user.email)} />}
+
           {view === 'exclusions' && (
             <ExclusionsView 
                 exclusions={exclusions} 
