@@ -1104,13 +1104,13 @@ export default function MMSIPlatform() {
       const { data, error } = await supabase.from('user_roles').select('role').eq('user_id', userId).single();
       if (data) {
           setCurrentUserRole(data.role);
-          setView('dashboard');
+          setView(prev => (prev === 'login' ? 'dashboard' : prev));
           fetchAllData();
           logActivity('login', `User logged in as ${data.role}`);
       } else {
           await supabase.from('user_roles').insert([{ user_id: userId, role: 'requester', email: session?.user?.email }]);
           setCurrentUserRole('requester');
-          setView('dashboard');
+          setView(prev => (prev === 'login' ? 'dashboard' : prev));
           fetchAllData();
       }
   };
