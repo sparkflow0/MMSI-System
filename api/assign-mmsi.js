@@ -17,6 +17,23 @@ const getEnv = () => {
   return { url, key };
 };
 
+const authenticate = (req) => {
+  const expected =
+    process.env.ASSIGN_MMSI_TOKEN ||
+    process.env.API_TOKEN ||
+    process.env.API_SECRET;
+
+  if (!expected) return true; // no token configured: allow for backward compatibility
+
+  const authHeader = req.headers['authorization'];
+  const bearer = authHeader && authHeader.toLowerCase().startsWith('bearer ')
+    ? authHeader.slice(7)
+    : null;
+  const headerToken = bearer || req.headers['x-api-token'];
+
+  return headerToken && headerToken === expected;
+};
+
 const findNextAvailable = (assignedSet, exclusions) => {
   const isExcluded = (mmsi) =>
     exclusions.some((ex) => {
@@ -34,6 +51,11 @@ const findNextAvailable = (assignedSet, exclusions) => {
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     res.status(405).json({ error: 'Method not allowed' });
+    return;
+  }
+
+  if (!authenticate(req)) {
+    res.status(401).json({ error: 'Unauthorized' });
     return;
   }
 

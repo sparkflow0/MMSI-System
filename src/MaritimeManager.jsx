@@ -199,7 +199,7 @@ function StatCard({ label, value, icon: Icon, color, subtext }) {
   );
 }
 
-function LoginView({ handleLogin, loading }) {
+function LoginView({ handleLogin, loading, onShowDocs }) {
     const [email, setEmail] = useState('');
     const [pass, setPass] = useState('');
     return (
@@ -217,6 +217,9 @@ function LoginView({ handleLogin, loading }) {
                     <div><label className="block text-sm font-bold text-slate-700">Password</label><input type="password" value={pass} onChange={e=>setPass(e.target.value)} className="w-full p-3 border rounded-lg" required/></div>
                     <button type="submit" disabled={loading} className="w-full bg-blue-600 text-white py-3 rounded-lg font-bold hover:bg-blue-700">{loading ? 'Signing In...' : 'Sign In'}</button>
                 </form>
+                <div className="mt-4 text-center">
+                    <button onClick={onShowDocs} className="text-blue-600 hover:underline text-sm font-semibold">View Public API Docs</button>
+                </div>
             </div>
         </div>
     );
@@ -306,6 +309,124 @@ function AuditLogView({ auditLogs }) {
             </table>
         </div>
     </div>
+    );
+}
+
+function ApiDocsView({ setView }) {
+    return (
+      <div className="max-w-4xl mx-auto bg-white rounded-xl shadow-sm border border-slate-200 p-8 space-y-6">
+        <div className="flex items-center justify-between">
+            <div>
+                <p className="text-xs font-bold text-blue-600 uppercase tracking-widest">Public API</p>
+                <h1 className="text-2xl font-bold text-slate-900">MMSI Assignment API</h1>
+                <p className="text-slate-600 mt-1">Assign the next available MMSI while respecting exclusion ranges.</p>
+            </div>
+            {setView && <button onClick={() => setView('login')} className="text-sm text-blue-600 hover:underline">Back to app</button>}
+        </div>
+
+        <section className="space-y-2">
+            <p className="font-mono text-sm bg-slate-100 px-3 py-2 rounded border border-slate-200 inline-block">POST /api/assign-mmsi</p>
+            <p className="text-slate-700">Assigns the next available MMSI within 408000001–408999998, skipping exclusions. Persists into <code className="font-mono">active_ships</code> and updates <code className="font-mono">mmsi_pool</code>.</p>
+        </section>
+
+        <section className="space-y-2">
+            <h2 className="text-lg font-bold text-slate-800">Authentication</h2>
+            <ul className="list-disc pl-6 text-slate-700 space-y-1">
+                <li>Supabase service credentials on the server (<code className="font-mono">SUPABASE_URL</code> + service key).</li>
+                <li>API token via <code className="font-mono">Authorization: Bearer &lt;token&gt;</code> or <code className="font-mono">x-api-token</code>. Token comes from <code className="font-mono">ASSIGN_MMSI_TOKEN</code> (or <code className="font-mono">API_TOKEN</code> / <code className="font-mono">API_SECRET</code>). If none are set, token check is skipped (not recommended for production).</li>
+            </ul>
+        </section>
+
+        <section className="space-y-2">
+            <h2 className="text-lg font-bold text-slate-800">Request</h2>
+            <p className="text-slate-700 font-mono bg-slate-50 border border-slate-200 px-3 py-1 inline-block text-xs rounded">Content-Type: application/json</p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-slate-700">
+                <div>
+                    <p className="font-semibold text-slate-800 text-sm mb-1">Required</p>
+                    <ul className="list-disc pl-5 space-y-1">
+                        <li><code className="font-mono text-xs">ship_name</code> (string)</li>
+                        <li><code className="font-mono text-xs">call_sign</code> (string)</li>
+                        <li><code className="font-mono text-xs">owner_name</code> (string)</li>
+                        <li><code className="font-mono text-xs">reg_no</code> (string)</li>
+                        <li><code className="font-mono text-xs">registration_date</code> (YYYY-MM-DD)</li>
+                        <li><code className="font-mono text-xs">expiry_date</code> (YYYY-MM-DD)</li>
+                    </ul>
+                </div>
+                <div>
+                    <p className="font-semibold text-slate-800 text-sm mb-1">Optional</p>
+                    <ul className="list-disc pl-5 space-y-1">
+                        <li><code className="font-mono text-xs">ship_type</code> (string, defaults to <code className="font-mono text-xs">"Gen"</code>)</li>
+                    </ul>
+                </div>
+            </div>
+        </section>
+
+        <section className="space-y-2">
+            <h2 className="text-lg font-bold text-slate-800">Example Request</h2>
+            <pre className="bg-slate-900 text-slate-100 text-sm rounded-lg p-4 overflow-x-auto"><code>{`curl -X POST https://your-host/api/assign-mmsi \\
+  -H "Content-Type: application/json" \\
+  -H "Authorization: Bearer <token>" \\
+  -d '{
+    "ship_name": "Falcon",
+    "call_sign": "A9XXX",
+    "owner_name": "John Doe",
+    "reg_no": "REG-123",
+    "registration_date": "2024-01-02",
+    "expiry_date": "2026-01-01",
+    "ship_type": "Gen"
+  }'`}</code></pre>
+        </section>
+
+        <section className="space-y-2">
+            <h2 className="text-lg font-bold text-slate-800">Success Response (200)</h2>
+            <pre className="bg-slate-900 text-slate-100 text-sm rounded-lg p-4 overflow-x-auto"><code>{`{
+  "mmsi": "408000123",
+  "ship_name": "Falcon",
+  "call_sign": "A9XXX",
+  "registration_date": "2024-01-02",
+  "expiry_date": "2026-01-01",
+  "owner_name": "John Doe",
+  "reg_no": "REG-123",
+  "ship_type": "Gen",
+  "ship": {
+    "ship_name": "Falcon",
+    "call_sign": "A9XXX",
+    "registration_date": "2024-01-02",
+    "expiry_date": "2026-01-01",
+    "owner_name": "John Doe",
+    "reg_no": "REG-123",
+    "ship_type": "Gen"
+  }
+}`}</code></pre>
+        </section>
+
+        <section className="space-y-2">
+            <h2 className="text-lg font-bold text-slate-800">Error Responses</h2>
+            <ul className="list-disc pl-6 text-slate-700 space-y-1">
+                <li><span className="font-mono text-xs">400 Bad Request</span> – Missing required fields.</li>
+                <li><span className="font-mono text-xs">409 Conflict</span> – No available MMSI or repeated collision during concurrent assignment.</li>
+                <li><span className="font-mono text-xs">500 Internal Server Error</span> – Unexpected server/database error.</li>
+            </ul>
+        </section>
+
+        <section className="space-y-2">
+            <h2 className="text-lg font-bold text-slate-800">Behavior Notes</h2>
+            <ul className="list-disc pl-6 text-slate-700 space-y-1">
+                <li>Scans <code className="font-mono">active_ships</code> and <code className="font-mono">mmsi_exclusions</code> to find the next free MMSI.</li>
+                <li>Retries on insert collision (concurrent assignment) by moving to the next candidate.</li>
+                <li>Updates <code className="font-mono">mmsi_pool</code> with <code className="font-mono">status: "Assigned"</code> and <code className="font-mono">assigned_name</code>.</li>
+            </ul>
+        </section>
+
+        <section className="space-y-2">
+            <h2 className="text-lg font-bold text-slate-800">Required Env Vars</h2>
+            <ul className="list-disc pl-6 text-slate-700 space-y-1">
+                <li><code className="font-mono text-xs">SUPABASE_URL</code> (or <code className="font-mono text-xs">VITE_SUPABASE_URL</code>)</li>
+                <li><code className="font-mono text-xs">SUPABASE_SERVICE_ROLE</code> or <code className="font-mono text-xs">SUPABASE_SERVICE_KEY</code> (fallback: <code className="font-mono text-xs">VITE_SUPABASE_KEY</code>)</li>
+                <li>API token (recommended): <code className="font-mono text-xs">ASSIGN_MMSI_TOKEN</code> (or <code className="font-mono text-xs">API_TOKEN</code> / <code className="font-mono text-xs">API_SECRET</code>)</li>
+            </ul>
+        </section>
+      </div>
     );
 }
 
@@ -1281,7 +1402,8 @@ export default function MMSIPlatform() {
       setLoading(false);
   };
 
-  if (view === 'login') return <LoginView handleLogin={handleLogin} loading={loading} />;
+  if (view === 'docs' && !session) return <ApiDocsView setView={setView} />;
+  if (view === 'login') return <LoginView handleLogin={handleLogin} loading={loading} onShowDocs={() => setView('docs')} />;
 
   return (
     <div
@@ -1316,6 +1438,7 @@ export default function MMSIPlatform() {
           
           {/* Requester & Up */}
           <SidebarItem id="search" icon={Search} label="Ship Registry" setView={setView} currentView={view} isMobile={true} closeMobileMenu={()=>setMobileMenuOpen(false)}/>
+          <SidebarItem id="docs" icon={FileText} label="API Docs" setView={setView} currentView={view} isMobile={true} closeMobileMenu={()=>setMobileMenuOpen(false)}/>
           
           {currentUserRole === 'requester' && (
              <SidebarItem id="my-requests" icon={FileCheck} label="My Requests" setView={setView} currentView={view} isMobile={true} closeMobileMenu={()=>setMobileMenuOpen(false)}/>
@@ -1433,6 +1556,8 @@ export default function MMSIPlatform() {
                 setSearchMmsi={setHistorySearch} 
             />
           )}
+          
+          {view === 'docs' && <ApiDocsView setView={setView} />}
           
         </main>
       </div>
