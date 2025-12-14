@@ -217,9 +217,6 @@ function LoginView({ handleLogin, loading, onShowDocs }) {
                     <div><label className="block text-sm font-bold text-slate-700">Password</label><input type="password" value={pass} onChange={e=>setPass(e.target.value)} className="w-full p-3 border rounded-lg" required/></div>
                     <button type="submit" disabled={loading} className="w-full bg-blue-600 text-white py-3 rounded-lg font-bold hover:bg-blue-700">{loading ? 'Signing In...' : 'Sign In'}</button>
                 </form>
-                <div className="mt-4 text-center">
-                    <button onClick={onShowDocs} className="text-blue-600 hover:underline text-sm font-semibold">View Public API Docs</button>
-                </div>
             </div>
         </div>
     );
@@ -1070,19 +1067,37 @@ export default function MMSIPlatform() {
   }, []);
 
   useEffect(() => {
+      if (typeof window === 'undefined') return;
+      if (window.location.pathname === '/docs') {
+          setView('docs');
+      }
+  }, []);
+
+  useEffect(() => {
+      if (typeof window === 'undefined') return;
+      if (view === 'docs') {
+          window.history.replaceState(null, '', '/docs');
+      } else if (window.location.pathname === '/docs') {
+          window.history.replaceState(null, '', '/');
+      }
+  }, [view]);
+
+  useEffect(() => {
       if (!supabase) return;
       supabase.auth.getSession().then(({ data: { session } }) => {
           setSession(session);
+          if (view === 'docs') return;
           if (session) fetchUserProfile(session.user.id);
           else setView('login');
       });
       const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
           setSession(session);
+          if (view === 'docs') return;
           if (session) fetchUserProfile(session.user.id);
           else setView('login');
       });
       return () => subscription.unsubscribe();
-  }, [supabase]);
+  }, [supabase, view]);
 
   const fetchUserProfile = async (userId) => {
       if(!supabase) return;
