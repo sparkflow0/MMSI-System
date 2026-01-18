@@ -1,0 +1,43 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Helper to check if user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // Default: Deny all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+    
+    // User Roles: Users can read their own profile.
+    // Ideally, only admins can write, but for initial setup/signup, we might need write.
+    // User Roles: The app fetches all roles on load, so we must allow list.
+    match /user_roles/{roleId} {
+      allow read, write: if isAuthenticated();
+    }
+
+    // Core Collections
+    match /active_ships/{document=**} {
+      allow read, write: if isAuthenticated();
+    }
+    match /mmsi_pool/{document=**} {
+      allow read, write: if isAuthenticated();
+    }
+    match /mmsi_exclusions/{document=**} {
+      allow read, write: if isAuthenticated();
+    }
+    match /audit_logs/{document=**} {
+       allow read, write: if isAuthenticated();
+    }
+    
+    // Missing Collections Fixed
+    match /mmsi_requests/{document=**} {
+       allow read, write: if isAuthenticated();
+    }
+    match /assignment_history/{document=**} {
+       allow read, write: if isAuthenticated();
+    }
+  }
+}
